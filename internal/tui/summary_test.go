@@ -12,10 +12,10 @@ func TestRenderSummaryGroupsOutcomesAndPreservesFailureGuidance(t *testing.T) {
 		{SkillName: "install", Outcome: project.OutcomeInstalled},
 		{SkillName: "remove", Outcome: project.OutcomeRemoved},
 		{SkillName: "keep", Outcome: project.OutcomeUnchanged},
-		{SkillName: "broken", Outcome: project.OutcomeFailed, Message: "permissão negada; habilite Developer Mode"},
+		{SkillName: "broken", Outcome: project.OutcomeFailed, Message: "permissão negada; verifique o acesso ao diretório"},
 	}}
 	view := RenderSummary(result)
-	for _, expected := range []string{"instaladas:\n- install", "removidas:\n- remove", "inalteradas:\n- keep", "falhas:\n- broken: permissão negada; habilite Developer Mode"} {
+	for _, expected := range []string{"instaladas:\n- install", "removidas:\n- remove", "inalteradas:\n- keep", "falhas:\n- broken: permissão negada; verifique o acesso ao diretório"} {
 		assertContains(t, view, expected)
 	}
 	if strings.Index(view, "instaladas:") > strings.Index(view, "removidas:") {

@@ -1,9 +1,8 @@
-//go:build !windows
-
 package platform
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"syscall"
@@ -11,7 +10,8 @@ import (
 )
 
 func TestSymlinkPermissionErrorRecognizesPortablePermissionFailures(t *testing.T) {
-	for _, cause := range []error{os.ErrPermission, syscall.EACCES, syscall.EPERM} {
+	wrappedPermission := fmt.Errorf("symlink: %w", os.ErrPermission)
+	for _, cause := range []error{os.ErrPermission, syscall.EACCES, syscall.EPERM, wrappedPermission} {
 		if !IsSymlinkPermissionError(cause) {
 			t.Errorf("IsSymlinkPermissionError(%v) = false, want true", cause)
 		}
@@ -21,7 +21,7 @@ func TestSymlinkPermissionErrorRecognizesPortablePermissionFailures(t *testing.T
 	}
 }
 
-func TestSymlinkPermissionMessageContainsOffendingSkillAndPosixGuidance(t *testing.T) {
+func TestSymlinkPermissionMessageContainsOffendingSkillAndPortableGuidance(t *testing.T) {
 	message := SymlinkPermissionMessage("code-review", "/project/.agents/skills/code-review", os.ErrPermission)
 	for _, expected := range []string{"code-review", "/project/.agents/skills/code-review", "permissão", "links simbólicos"} {
 		if !strings.Contains(message, expected) {

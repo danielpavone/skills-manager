@@ -4,21 +4,15 @@ CLI em Go para selecionar skills de um catálogo local e disponibilizá-las no p
 
 ## Instalação
 
-Em macOS e Linux, a instalação da release mais recente pode ser iniciada com:
+Em macOS, Linux ou dentro do WSL2, a instalação da release mais recente pode ser iniciada com:
 
 ```sh
 curl -fsSL https://github.com/danielpavone/skills-manager/releases/latest/download/install.sh | sh
 ```
 
-No Windows PowerShell:
+O instalador baixa o arquivo compactado e `skills-manager_checksums.txt` por HTTPS, confere o SHA-256 antes de extrair e só substitui o binário depois da verificação. Para uma instalação manual, baixe ambos os arquivos da release, confira o checksum com `sha256sum` ou `shasum` e extraia o arquivo compatível com seu sistema.
 
-```powershell
-curl.exe -fsSL https://github.com/danielpavone/skills-manager/releases/latest/download/install.ps1 | powershell -NoProfile -Command -
-```
-
-Os instaladores baixam o arquivo compactado e `skills-manager_checksums.txt` por HTTPS, conferem o SHA-256 antes de extrair e só substituem o binário depois da verificação. Para uma instalação manual, baixe ambos os arquivos da release, confira o checksum com `sha256sum` ou `Get-FileHash` e extraia o arquivo compatível com seu sistema.
-
-Os instaladores aceitam `SKILLS_MANAGER_REPO`, `SKILLS_MANAGER_VERSION`, `SKILLS_MANAGER_INSTALL_DIR` e `SKILLS_MANAGER_DOWNLOAD_BASE_URL` para releases alternativas. A URL-base deve ser HTTPS fora dos testes.
+O instalador aceita `SKILLS_MANAGER_REPO`, `SKILLS_MANAGER_VERSION`, `SKILLS_MANAGER_INSTALL_DIR` e `SKILLS_MANAGER_DOWNLOAD_BASE_URL` para releases alternativas. A URL-base deve ser HTTPS fora dos testes.
 
 ## Configuração inicial
 
@@ -98,7 +92,9 @@ Durante a pesquisa, `enter` aplica o filtro e retorna à navegação. Depois de 
 
 ## Compatibilidade
 
-As releases incluem Linux, macOS e Windows em `amd64` e `arm64`. Linux e macOS usam `tar.gz`; Windows usa `zip`. A criação de links simbólicos depende das permissões do sistema. Se o Windows negar a operação, habilite o Developer Mode ou execute em um contexto com privilégio adequado; a CLI reportará a skill afetada e não copiará o conteúdo como fallback.
+As releases incluem Linux e macOS em `amd64` e `arm64`, usando arquivos `tar.gz`. No Windows, o ambiente oficialmente suportado é o WSL2: abra uma distribuição Linux, execute nela o comando de instalação e use a CLI no mesmo ambiente.
+
+Para manter o comportamento esperado dos links simbólicos, prefira armazenar o catálogo e os projetos no filesystem Linux do WSL2, como em `~/projects`. Caminhos montados em `/mnt/c` podem não ser interoperáveis com ferramentas executadas diretamente no Windows. PowerShell, Command Prompt e binários `.exe` não são suportados.
 
 ## Desenvolvimento
 
@@ -108,10 +104,10 @@ Requer Go 1.25 ou superior. Testes, integração e cenários de filesystem contr
 go test ./...
 ```
 
-Os fixtures dos instaladores podem ser executados separadamente em sistemas POSIX:
+Os fixtures do instalador podem ser executados separadamente em sistemas POSIX:
 
 ```sh
 sh scripts/install_test.sh
 ```
 
-Em Windows, execute `scripts/install.tests.ps1` no PowerShell. O workflow de CI executa esses testes e `go test ./...` em runners Linux, macOS e Windows. Releases são publicadas pelo GoReleaser quando uma tag `v*` é enviada.
+O workflow de CI executa os testes em runners Linux e macOS. Releases são publicadas pelo GoReleaser quando uma tag `v*` é enviada; o WSL2 reutiliza o artefato e o instalador Linux.

@@ -45,11 +45,9 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-          - windows-latest
 
     steps:
       - name: Install and verify POSIX artifact
-        if: runner.os != 'Windows'
         shell: bash
         env:
           INSTALL_ROOT: ${{ runner.temp }}/skills-manager-smoke
@@ -59,21 +57,3 @@ jobs:
           curl -fsSL "https://github.com/${{ github.repository }}/releases/download/$RELEASE_VERSION/install.sh" -o "$INSTALL_ROOT/install.sh"
           SKILLS_MANAGER_VERSION="$RELEASE_VERSION" SKILLS_MANAGER_INSTALL_DIR="$INSTALL_ROOT/bin" sh "$INSTALL_ROOT/install.sh"
           "$INSTALL_ROOT/bin/skills-manager" --version | grep -F "${RELEASE_VERSION#v}"
-
-      - name: Install and verify Windows artifact
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          INSTALL_ROOT: ${{ runner.temp }}/skills-manager-smoke
-          RELEASE_VERSION: ${{ github.ref_name }}
-        run: |
-          New-Item -ItemType Directory -Path "$env:INSTALL_ROOT/bin" -Force | Out-Null
-          curl.exe -fsSL "https://github.com/${{ github.repository }}/releases/download/$env:RELEASE_VERSION/install.ps1" -o "$env:INSTALL_ROOT/install.ps1"
-          $env:SKILLS_MANAGER_VERSION = $env:RELEASE_VERSION
-          $env:SKILLS_MANAGER_INSTALL_DIR = "$env:INSTALL_ROOT/bin"
-          & "$env:INSTALL_ROOT/install.ps1"
-          $versionOutput = & "$env:INSTALL_ROOT/bin/skills-manager.exe" --version
-          $expectedVersion = $env:RELEASE_VERSION.TrimStart('v')
-          if (-not $versionOutput.Contains($expectedVersion)) {
-              throw "versão '$versionOutput' não contém '$expectedVersion'"
-          }
