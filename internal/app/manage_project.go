@@ -20,6 +20,10 @@ type SelectionUI interface {
 	Choose(ctx context.Context, assessments []project.LinkAssessment) (project.Selection, error)
 }
 
+type SelectionSessionUI interface {
+	ChooseAndApply(ctx context.Context, assessments []project.LinkAssessment, apply func(context.Context, project.Selection) (project.BatchResult, error)) (project.BatchResult, error)
+}
+
 type ManageProject struct {
 	store     ConfigStore
 	reader    CatalogReader
@@ -36,10 +40,28 @@ func (m ManageProject) Manage(ctx context.Context, projectPath string) (project.
 	if err != nil {
 		return project.BatchResult{}, err
 	}
+	if session, ok := m.selection.(SelectionSessionUI); ok {
+		return m.manageSession(ctx, projectPath, assessments, session)
+	}
 	changes, err := m.planChanges(ctx, assessments)
 	if err != nil {
 		return project.BatchResult{}, normalizeSelectionError(err)
 	}
+	return m.applySelection(ctx, projectPath, assessments, changes)
+}
+
+func (m ManageProject) manageSession(ctx context.Context, projectPath string, assessments []project.LinkAssessment, session SelectionSessionUI) (project.BatchResult, error) {
+	result, err := session.ChooseAndApply(ctx, assessments, func(applyCtx context.Context, selection project.Selection) (project.BatchResult, error) {
+		changes, planErr := project.Plan(assessments, selection)
+		if planErr != nil {
+			return project.BatchResult{}, planErr
+		}
+		return m.applySelection(applyCtx, projectPath, assessments, changes)
+	})
+	return result, normalizeSelectionError(err)
+}
+
+func (m ManageProject) applySelection(ctx context.Context, projectPath string, assessments []project.LinkAssessment, changes []project.SelectionChange) (project.BatchResult, error) {
 	if project.OnlyKeeps(changes) {
 		return project.DescribeConflicts(project.UnchangedBatch(changes), assessments), nil
 	}

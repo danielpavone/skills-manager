@@ -155,6 +155,30 @@ func TestSelectionUICompletesControlledKeyboardSession(t *testing.T) {
 	}
 }
 
+func TestModelKeepsAppliedSuccessSummaryOpenUntilQuit(t *testing.T) {
+	model := NewModel([]project.LinkAssessment{
+		{Skill: catalog.Skill{Name: "installed", SourcePath: "/catalog/installed"}, LinkPath: "/project/installed", State: project.LinkAbsent},
+	})
+	model.runContext = context.Background()
+	model.apply = func(context.Context, project.Selection) (project.BatchResult, error) {
+		return project.BatchResult{Results: []project.OperationResult{{SkillName: "installed", Outcome: project.OutcomeInstalled}}}, nil
+	}
+	model = updateModel(t, model, keyPress("enter"))
+	updated, command := model.Update(keyPress("enter"))
+	if command == nil {
+		t.Fatal("confirmation command is nil, want asynchronous application")
+	}
+	model = updateModel(t, updated.(Model), command())
+	if model.phase != phaseSummary {
+		t.Fatalf("phase after application = %q, want summary", model.phase)
+	}
+	assertContains(t, ansi.Strip(model.View().Content), "operação concluída com sucesso")
+	_, quit := model.Update(keyPress("q"))
+	if quit == nil {
+		t.Fatal("summary quit command is nil, want explicit quit")
+	}
+}
+
 func TestSelectionUICompletesTenSkillKeyboardSession(t *testing.T) {
 	assessments := make([]project.LinkAssessment, 10)
 	for index := range assessments {

@@ -20,19 +20,25 @@ type phase string
 const (
 	phaseList     phase = "list"
 	phaseConfirm  phase = "confirm"
+	phaseApplying phase = "applying"
 	phaseSummary  phase = "summary"
+	phaseError    phase = "error"
 	phaseCanceled phase = "canceled"
 )
 
 type Model struct {
-	assessments []project.LinkAssessment
-	selected    map[string]bool
-	list        list.Model
-	styles      viewStyles
-	phase       phase
-	width       int
-	height      int
-	result      project.BatchResult
+	assessments    []project.LinkAssessment
+	selected       map[string]bool
+	list           list.Model
+	styles         viewStyles
+	phase          phase
+	width          int
+	height         int
+	result         project.BatchResult
+	resultErr      error
+	runContext     context.Context
+	apply          func(context.Context, project.Selection) (project.BatchResult, error)
+	quitAfterApply bool
 }
 
 func NewModel(assessments []project.LinkAssessment) Model {
@@ -62,6 +68,9 @@ func NewModel(assessments []project.LinkAssessment) Model {
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if result, ok := msg.(applyResultMsg); ok {
+		return m.finishApplying(result)
+	}
 	if size, ok := msg.(tea.WindowSizeMsg); ok {
 		m.resize(size.Width, size.Height)
 		return m, nil
@@ -76,7 +85,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.phase == phaseConfirm {
 		return m.updateConfirmation(key)
 	}
-	if m.phase == phaseSummary && isCancelKey(key) {
+	if m.phase == phaseApplying && isCancelKey(key) {
+		m.quitAfterApply = true
+		return m, nil
+	}
+	if (m.phase == phaseSummary || m.phase == phaseError) && isCancelKey(key) {
 		return m, tea.Quit
 	}
 	return m, nil
@@ -113,6 +126,16 @@ func (m Model) updateList(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateConfirmation(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if isConfirmKey(key) {
+		if m.apply != nil {
+			selection, err := m.Selection()
+			if err != nil {
+				m.resultErr = err
+				m.phase = phaseError
+				return m, nil
+			}
+			m.phase = phaseApplying
+			return m, m.applySelection(selection)
+		}
 		m.phase = phaseSummary
 		return m, tea.Quit
 	}
@@ -157,13 +180,25 @@ func (m Model) renderContent() string {
 	switch m.phase {
 	case phaseConfirm:
 		return m.renderConfirmation()
+	case phaseApplying:
+		return fitViewWidth([]string{"", "  " + m.styles.title.Render("aplicando alterações..."), ""}, m.width)
 	case phaseSummary:
-		return RenderSummary(m.result)
+		return m.renderResult()
+	case phaseError:
+		return fitViewWidth([]string{"", "  " + m.styles.title.Render("falha ao aplicar alterações"), "", "  " + m.resultErr.Error(), "", "  " + m.styles.muted.Render("q/esc sair")}, m.width)
 	case phaseCanceled:
 		return "operação cancelada"
 	default:
 		return m.renderList()
 	}
+}
+
+func (m Model) renderResult() string {
+	title := "operação concluída com sucesso"
+	if m.result.HasFailures {
+		title = "operação concluída com falhas"
+	}
+	return fitViewWidth([]string{"", "  " + m.styles.title.Render(title), "", "  " + RenderSummary(m.result), "", "  " + m.styles.muted.Render("q/esc sair")}, m.width)
 }
 
 func (m Model) renderList() string {
@@ -251,6 +286,31 @@ func (m Model) SetSummary(result project.BatchResult) Model {
 	return m
 }
 
+type applyResultMsg struct {
+	result project.BatchResult
+	err    error
+}
+
+func (m Model) applySelection(selection project.Selection) tea.Cmd {
+	return func() tea.Msg {
+		result, err := m.apply(m.runContext, selection)
+		return applyResultMsg{result: result, err: err}
+	}
+}
+
+func (m Model) finishApplying(result applyResultMsg) (tea.Model, tea.Cmd) {
+	if result.err != nil {
+		m.resultErr = result.err
+		m.phase = phaseError
+		return m, nil
+	}
+	m = m.SetSummary(result.result)
+	if m.quitAfterApply {
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
 type SelectionUI struct {
 	input  io.Reader
 	output io.Writer
@@ -267,20 +327,44 @@ func NewSelectionUI(input io.Reader, output io.Writer) SelectionUI {
 }
 
 func (ui SelectionUI) Choose(ctx context.Context, assessments []project.LinkAssessment) (project.Selection, error) {
+	finalModel, err := ui.run(ctx, NewModel(assessments))
+	if err != nil {
+		return project.Selection{}, err
+	}
+	return finalModel.Selection()
+}
+
+func (ui SelectionUI) ChooseAndApply(ctx context.Context, assessments []project.LinkAssessment, apply func(context.Context, project.Selection) (project.BatchResult, error)) (project.BatchResult, error) {
 	model := NewModel(assessments)
+	model.runContext = ctx
+	model.apply = apply
+	finalModel, err := ui.run(ctx, model)
+	if err != nil {
+		return project.BatchResult{}, err
+	}
+	if finalModel.resultErr != nil {
+		return finalModel.result, finalModel.resultErr
+	}
+	if finalModel.phase == phaseCanceled {
+		return project.BatchResult{}, context.Canceled
+	}
+	return finalModel.result, nil
+}
+
+func (ui SelectionUI) run(ctx context.Context, model Model) (Model, error) {
 	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithInput(ui.input), tea.WithOutput(ui.output))
 	final, err := program.Run()
 	if err != nil {
 		if errors.Is(err, tea.ErrProgramKilled) && ctx.Err() != nil {
-			return project.Selection{}, ctx.Err()
+			return Model{}, ctx.Err()
 		}
-		return project.Selection{}, err
+		return Model{}, err
 	}
 	finalModel, ok := final.(Model)
 	if !ok {
-		return project.Selection{}, fmt.Errorf("modelo final inválido %T: esperado tui.Model", final)
+		return Model{}, fmt.Errorf("modelo final inválido %T: esperado tui.Model", final)
 	}
-	return finalModel.Selection()
+	return finalModel, nil
 }
 
 func assessmentItems(assessments []project.LinkAssessment) []list.Item {
