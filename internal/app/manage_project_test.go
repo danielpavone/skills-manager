@@ -16,6 +16,7 @@ type FakeProjectLinks struct {
 	assessments   []project.LinkAssessment
 	inspectErr    error
 	result        project.BatchResult
+	results       []project.BatchResult
 	inspectPath   string
 	inspectTarget agentdir.Directory
 	applyPath     string
@@ -33,6 +34,9 @@ func (f *FakeProjectLinks) Apply(_ context.Context, projectPath string, changes 
 	f.applyCalls++
 	f.applyPath = projectPath
 	f.changes = append([]project.SelectionChange(nil), changes...)
+	if f.applyCalls <= len(f.results) {
+		return f.results[f.applyCalls-1]
+	}
 	return f.result
 }
 
@@ -41,6 +45,26 @@ type FakeSelectionUI struct {
 	err         error
 	assessments []project.LinkAssessment
 	chooseCalls int
+}
+
+type FakeRepeatedSelectionSession struct {
+	selections []project.Selection
+}
+
+func (f FakeRepeatedSelectionSession) Choose(context.Context, []project.LinkAssessment) (project.Selection, error) {
+	return project.Selection{}, errors.New("Choose called: expected ChooseAndApply")
+}
+
+func (f FakeRepeatedSelectionSession) ChooseAndApply(ctx context.Context, _ []project.LinkAssessment, apply func(context.Context, project.Selection) (project.BatchResult, error)) (project.BatchResult, error) {
+	var result project.BatchResult
+	var err error
+	for _, selection := range f.selections {
+		result, err = apply(ctx, selection)
+		if err != nil {
+			return result, err
+		}
+	}
+	return result, nil
 }
 
 func (f *FakeSelectionUI) Choose(_ context.Context, assessments []project.LinkAssessment) (project.Selection, error) {
@@ -118,6 +142,34 @@ func TestManageProjectSkipsApplyWhenConfirmationHasNoDifferences(t *testing.T) {
 	}
 }
 
+func TestManageProjectRefreshesSessionStateBeforeASecondSelection(t *testing.T) {
+	projectPath := t.TempDir()
+	skill := catalog.Skill{Name: "repeat", SourcePath: filepath.Join(t.TempDir(), "repeat")}
+	assessment := project.LinkAssessment{
+		Skill: skill, LinkPath: filepath.Join(projectPath, ".agents", "skills", skill.Name), State: project.LinkAbsent,
+	}
+	links := &FakeProjectLinks{
+		assessments: []project.LinkAssessment{assessment},
+		results:     []project.BatchResult{installedBatch(skill.Name), removedBatch(skill.Name)},
+	}
+	ui := FakeRepeatedSelectionSession{selections: []project.Selection{mustSelection(t, skill.Name), mustSelection(t)}}
+	useCase := NewManageProject(
+		&FakeConfigStore{loaded: config.CatalogConfig{CatalogPath: "/catalog", SchemaVersion: config.CurrentSchemaVersion}},
+		&FakeCatalogReader{skills: []catalog.Skill{skill}}, links, ui,
+	)
+
+	result, err := useCase.Manage(context.Background(), projectPath)
+	if err != nil {
+		t.Fatalf("Manage() error = %v", err)
+	}
+	if links.applyCalls != 2 || links.changes[0].Action != project.ActionRemove {
+		t.Fatalf("apply calls = %d, final changes = %#v, want a second remove", links.applyCalls, links.changes)
+	}
+	if result.Results[0].Outcome != project.OutcomeRemoved {
+		t.Fatalf("result = %#v, want final removal", result.Results)
+	}
+}
+
 func TestManageProjectReturnsCancellationWithoutApplying(t *testing.T) {
 	links := &FakeProjectLinks{}
 	ui := &FakeSelectionUI{err: ErrSelectionCanceled}
@@ -154,5 +206,11 @@ func mustSelection(t *testing.T, names ...string) project.Selection {
 func installedBatch(name string) project.BatchResult {
 	return project.BatchResult{Results: []project.OperationResult{{
 		SkillName: name, Action: project.ActionInstall, Outcome: project.OutcomeInstalled,
+	}}}
+}
+
+func removedBatch(name string) project.BatchResult {
+	return project.BatchResult{Results: []project.OperationResult{{
+		SkillName: name, Action: project.ActionRemove, Outcome: project.OutcomeRemoved,
 	}}}
 }

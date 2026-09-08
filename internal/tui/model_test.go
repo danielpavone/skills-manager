@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/danielpavone/skills-manager/internal/catalog"
@@ -23,6 +24,13 @@ func TestModelStartsWithInstalledSkillsSelectedAndConflictsLocked(t *testing.T) 
 	assertContains(t, view, "installed / keep")
 	assertContains(t, view, "wrong_target / locked")
 	assertContains(t, view, "[!]")
+}
+
+func TestNewSkillsListConfiguresSearchPrompt(t *testing.T) {
+	configured := newSkillsList(nil, map[string]bool{}, newViewStyles())
+	if configured.FilterInput.Prompt != "pesquisa: " {
+		t.Fatalf("filter prompt = %q, want pesquisa prompt", configured.FilterInput.Prompt)
+	}
 }
 
 func TestModelFiltersCatalogByNameAndRetainsKeyboardPaging(t *testing.T) {
@@ -137,8 +145,49 @@ func TestModelSelectionExcludesLockedStates(t *testing.T) {
 func TestModelRendersSummaryState(t *testing.T) {
 	model := NewModel(nil).SetSummary(project.BatchResult{Results: []project.OperationResult{
 		{SkillName: "skill", Outcome: project.OutcomeInstalled},
+		{SkillName: "kept", Outcome: project.OutcomeUnchanged},
 	}})
-	assertContains(t, model.View().Content, "instaladas:\n- skill")
+	view := ansi.Strip(model.View().Content)
+	assertContains(t, view, "operação concluída com sucesso")
+	assertContains(t, view, "As skills deste projeto estão atualizadas\n\n")
+	assertContains(t, view, "Instaladas (1)\n    + skill")
+	assertContains(t, view, "+ skill\n\n  enter voltar às skills")
+	assertContains(t, view, "enter voltar às skills • q/esc sair")
+	if strings.Contains(view, "kept") || strings.Contains(view, "inalteradas") {
+		t.Fatalf("summary view = %q, want unchanged skills omitted", view)
+	}
+}
+
+func TestModelRendersFailuresAndPreservedConflictsWithGuidance(t *testing.T) {
+	model := NewModel(nil).SetSummary(project.BatchResult{HasFailures: true, Results: []project.OperationResult{
+		{SkillName: "conflict", Outcome: project.OutcomeUnchanged, ErrorCode: project.ErrorLinkConflict, Message: "destino preservado"},
+		{SkillName: "failed", Outcome: project.OutcomeFailed, Message: "permissão negada"},
+	}})
+	view := ansi.Strip(model.View().Content)
+	assertContains(t, view, "operação concluída com falhas")
+	assertContains(t, view, "Revise as skills que não puderam ser atualizadas")
+	assertContains(t, view, "Conflitos preservados (1)\n    ! conflict: destino preservado")
+	assertContains(t, view, "Falhas (1)\n    ! failed: permissão negada")
+}
+
+func TestModelSummaryReturnsToUpdatedSkillList(t *testing.T) {
+	model := NewModel([]project.LinkAssessment{
+		{Skill: catalog.Skill{Name: "skill", SourcePath: "/catalog/skill"}, LinkPath: "/project/.agents/skills/skill", State: project.LinkAbsent},
+	})
+	model.selected["skill"] = true
+	model.list.SetFilterText("skill")
+	updated, _ := model.finishApplying(applyResultMsg{result: project.BatchResult{Results: []project.OperationResult{
+		{SkillName: "skill", Action: project.ActionInstall, Outcome: project.OutcomeInstalled},
+	}}})
+	model = updated.(Model)
+	model = updateModel(t, model, keyPress("enter"))
+	if model.phase != phaseList {
+		t.Fatalf("phase after summary enter = %q, want list", model.phase)
+	}
+	assertContains(t, ansi.Strip(model.View().Content), "installed / keep")
+	if model.list.FilterState() != list.Unfiltered {
+		t.Fatalf("filter state = %v, want reset list", model.list.FilterState())
+	}
 }
 
 func TestSelectionUICompletesControlledKeyboardSession(t *testing.T) {

@@ -30,3 +30,29 @@ func TestUnchangedBatchPreservesPlanOrder(t *testing.T) {
 		t.Fatalf("result = %#v, want unchanged without failures", result)
 	}
 }
+
+func TestApplyOperationResultsUpdatesOnlySuccessfulLinkStates(t *testing.T) {
+	assessments := []LinkAssessment{
+		{Skill: catalog.Skill{Name: "installed", SourcePath: "/catalog/installed"}, State: LinkAbsent},
+		{Skill: catalog.Skill{Name: "removed", SourcePath: "/catalog/removed"}, State: LinkInstalled},
+		{Skill: catalog.Skill{Name: "failed", SourcePath: "/catalog/failed"}, State: LinkAbsent},
+	}
+	results := []OperationResult{
+		{SkillName: "installed", Outcome: OutcomeInstalled},
+		{SkillName: "removed", Outcome: OutcomeRemoved},
+		{SkillName: "failed", Outcome: OutcomeFailed},
+	}
+	updated := ApplyOperationResults(assessments, results)
+	if updated[0].State != LinkInstalled || updated[0].ActualTarget == nil || *updated[0].ActualTarget != "/catalog/installed" {
+		t.Fatalf("installed assessment = %#v, want installed with catalog target", updated[0])
+	}
+	if updated[1].State != LinkAbsent || updated[1].ActualTarget != nil {
+		t.Fatalf("removed assessment = %#v, want absent without target", updated[1])
+	}
+	if updated[2].State != LinkAbsent {
+		t.Fatalf("failed assessment = %#v, want original state", updated[2])
+	}
+	if assessments[0].State != LinkAbsent {
+		t.Fatal("ApplyOperationResults mutated its input")
+	}
+}

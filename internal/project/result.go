@@ -45,3 +45,28 @@ func UnchangedBatch(changes []SelectionChange) BatchResult {
 	}
 	return BatchResult{Results: results}
 }
+
+func ApplyOperationResults(assessments []LinkAssessment, results []OperationResult) []LinkAssessment {
+	resultByName := make(map[string]OperationResult, len(results))
+	for _, result := range results {
+		resultByName[result.SkillName] = result
+	}
+	updated := append([]LinkAssessment(nil), assessments...)
+	for index, assessment := range updated {
+		updated[index] = assessmentAfterOperation(assessment, resultByName[assessment.Skill.Name])
+	}
+	return updated
+}
+
+func assessmentAfterOperation(assessment LinkAssessment, result OperationResult) LinkAssessment {
+	if result.Outcome == OutcomeInstalled {
+		assessment.State = LinkInstalled
+		actualTarget := assessment.Skill.SourcePath
+		assessment.ActualTarget = &actualTarget
+	}
+	if result.Outcome == OutcomeRemoved {
+		assessment.State = LinkAbsent
+		assessment.ActualTarget = nil
+	}
+	return assessment
+}

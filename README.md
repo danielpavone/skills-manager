@@ -87,7 +87,7 @@ Atalhos principais:
 | `/` | pesquisar pelo nome |
 | `↑`/`↓`, `j`/`k` | percorrer a lista |
 | `space` | selecionar ou desmarcar |
-| `enter` | abrir ou concluir a confirmação |
+| `enter` | abrir ou concluir a confirmação; voltar às skills após aplicar |
 | `y` | aplicar alterações |
 | `esc` | voltar ou cancelar |
 | `q`, `ctrl+c` | sair |

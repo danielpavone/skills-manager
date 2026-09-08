@@ -51,12 +51,17 @@ func (m ManageProject) Manage(ctx context.Context, projectPath string) (project.
 }
 
 func (m ManageProject) manageSession(ctx context.Context, projectPath string, assessments []project.LinkAssessment, session SelectionSessionUI) (project.BatchResult, error) {
+	currentAssessments := assessments
 	result, err := session.ChooseAndApply(ctx, assessments, func(applyCtx context.Context, selection project.Selection) (project.BatchResult, error) {
-		changes, planErr := project.Plan(assessments, selection)
+		changes, planErr := project.Plan(currentAssessments, selection)
 		if planErr != nil {
 			return project.BatchResult{}, planErr
 		}
-		return m.applySelection(applyCtx, projectPath, assessments, changes)
+		batch, applyErr := m.applySelection(applyCtx, projectPath, currentAssessments, changes)
+		if applyErr == nil {
+			currentAssessments = project.ApplyOperationResults(currentAssessments, batch.Results)
+		}
+		return batch, applyErr
 	})
 	return result, normalizeSelectionError(err)
 }

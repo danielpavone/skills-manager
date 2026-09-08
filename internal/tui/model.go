@@ -39,12 +39,25 @@ type Model struct {
 	runContext     context.Context
 	apply          func(context.Context, project.Selection) (project.BatchResult, error)
 	quitAfterApply bool
+	hasApplied     bool
 }
 
 func NewModel(assessments []project.LinkAssessment) Model {
 	selected := initialSelection(assessments)
 	items := assessmentItems(assessments)
 	styles := newViewStyles()
+	return Model{
+		assessments: append([]project.LinkAssessment(nil), assessments...),
+		selected:    selected,
+		list:        newSkillsList(items, selected, styles),
+		styles:      styles,
+		phase:       phaseList,
+		width:       80,
+		height:      20,
+	}
+}
+
+func newSkillsList(items []list.Item, selected map[string]bool, styles viewStyles) list.Model {
 	delegate := newSkillDelegate(selected, styles)
 	itemsList := list.New(items, delegate, 80, 12)
 	itemsList.Title = "skills"
@@ -54,15 +67,7 @@ func NewModel(assessments []project.LinkAssessment) Model {
 	itemsList.SetShowHelp(false)
 	itemsList.SetShowFilter(false)
 	itemsList.DisableQuitKeybindings()
-	return Model{
-		assessments: append([]project.LinkAssessment(nil), assessments...),
-		selected:    selected,
-		list:        itemsList,
-		styles:      styles,
-		phase:       phaseList,
-		width:       80,
-		height:      20,
-	}
+	return itemsList
 }
 
 func (m Model) Init() tea.Cmd { return nil }
@@ -79,6 +84,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m.updateListMessage(msg)
 	}
+	return m.updateKey(key)
+}
+
+func (m Model) updateKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.phase == phaseList {
 		return m.updateList(key)
 	}
@@ -87,6 +96,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.phase == phaseApplying && isCancelKey(key) {
 		m.quitAfterApply = true
+		return m, nil
+	}
+	if m.phase == phaseSummary && isKey(key, "enter") {
+		m.phase = phaseList
 		return m, nil
 	}
 	if (m.phase == phaseSummary || m.phase == phaseError) && isCancelKey(key) {
@@ -193,14 +206,6 @@ func (m Model) renderContent() string {
 	}
 }
 
-func (m Model) renderResult() string {
-	title := "operação concluída com sucesso"
-	if m.result.HasFailures {
-		title = "operação concluída com falhas"
-	}
-	return fitViewWidth([]string{"", "  " + m.styles.title.Render(title), "", "  " + RenderSummary(m.result), "", "  " + m.styles.muted.Render("q/esc sair")}, m.width)
-}
-
 func (m Model) renderList() string {
 	title := "  " + m.styles.title.Render("skills-manager")
 	search := "  " + m.styles.muted.Render("pressione / para pesquisar")
@@ -305,6 +310,10 @@ func (m Model) finishApplying(result applyResultMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m = m.SetSummary(result.result)
+	m.hasApplied = true
+	m.assessments = project.ApplyOperationResults(m.assessments, result.result.Results)
+	m.list.ResetFilter()
+	_ = m.list.SetItems(assessmentItems(m.assessments))
 	if m.quitAfterApply {
 		return m, tea.Quit
 	}
@@ -345,7 +354,7 @@ func (ui SelectionUI) ChooseAndApply(ctx context.Context, assessments []project.
 	if finalModel.resultErr != nil {
 		return finalModel.result, finalModel.resultErr
 	}
-	if finalModel.phase == phaseCanceled {
+	if finalModel.phase == phaseCanceled && !finalModel.hasApplied {
 		return project.BatchResult{}, context.Canceled
 	}
 	return finalModel.result, nil
