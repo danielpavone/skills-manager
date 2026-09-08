@@ -11,9 +11,9 @@ import (
 
 func TestCompiledCLIConfiguresAndShowsCatalog(t *testing.T) {
 	binaryPath := buildTestCLI(t)
-	catalogPath := createCommandCatalog(t)
+	rootPath, catalogPath := createCommandCatalog(t)
 	configRoot := t.TempDir()
-	runTestCLI(t, binaryPath, configRoot, "config", "set", catalogPath)
+	runTestCLI(t, binaryPath, configRoot, "config", "set", rootPath)
 	output := runTestCLI(t, binaryPath, configRoot, "config", "show")
 	if strings.TrimSpace(output) != catalogPath {
 		t.Fatalf("config show output = %q, want %q", output, catalogPath)
@@ -41,16 +41,17 @@ func buildTestCLI(t *testing.T) string {
 	return binaryPath
 }
 
-func createCommandCatalog(t *testing.T) string {
+func createCommandCatalog(t *testing.T) (string, string) {
 	t.Helper()
-	catalogPath := filepath.Join(t.TempDir(), "catalog")
+	rootPath := t.TempDir()
+	catalogPath := filepath.Join(rootPath, ".agents", "skills")
 	if err := os.MkdirAll(filepath.Join(catalogPath, "tdd"), 0700); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(catalogPath, "tdd", "SKILL.md"), []byte("# tdd"), 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
-	return catalogPath
+	return rootPath, catalogPath
 }
 
 func runTestCLI(t *testing.T, binaryPath, configRoot string, args ...string) string {

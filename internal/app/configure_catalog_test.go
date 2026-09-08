@@ -29,21 +29,28 @@ func (f *FakeConfigStore) Save(_ context.Context, configured config.CatalogConfi
 }
 
 type FakeCatalogReader struct {
-	skills []catalog.Skill
-	err    error
-	path   string
+	skills           []catalog.Skill
+	err              error
+	path             string
+	paths            []string
+	validCatalogPath string
 }
 
 func (f *FakeCatalogReader) Read(_ context.Context, catalogPath string) ([]catalog.Skill, error) {
 	f.path = catalogPath
+	f.paths = append(f.paths, catalogPath)
+	if f.validCatalogPath != "" && catalogPath != f.validCatalogPath {
+		return nil, errors.New("catalog invalid")
+	}
 	return f.skills, f.err
 }
 
 func TestCatalogConfiguratorSetValidatesReadsAndSaves(t *testing.T) {
+	directPath := filepath.Join(t.TempDir(), "catalog")
 	store := &FakeConfigStore{}
-	reader := &FakeCatalogReader{skills: []catalog.Skill{{Name: "tdd"}}}
+	reader := &FakeCatalogReader{skills: []catalog.Skill{{Name: "tdd"}}, validCatalogPath: directPath}
 	configurator := NewCatalogConfigurator(store, reader)
-	configured, err := configurator.Set(context.Background(), filepath.Join(".", "catalog"))
+	configured, err := configurator.Set(context.Background(), directPath)
 	if err != nil {
 		t.Fatalf("Set() error = %v", err)
 	}
@@ -65,6 +72,34 @@ func TestCatalogConfiguratorSetDoesNotSaveInvalidCatalog(t *testing.T) {
 	}
 	if store.saveCall != 0 {
 		t.Fatalf("Save() calls = %d, want 0", store.saveCall)
+	}
+}
+
+func TestCatalogConfiguratorSetFindsAgentsSkillsBelowGivenDirectory(t *testing.T) {
+	rootPath := filepath.Join(t.TempDir(), "skills-repository")
+	catalogPath := filepath.Join(rootPath, ".agents", "skills")
+	store := &FakeConfigStore{}
+	reader := &FakeCatalogReader{skills: []catalog.Skill{{Name: "tdd"}}, validCatalogPath: catalogPath}
+	configured, err := NewCatalogConfigurator(store, reader).Set(context.Background(), rootPath)
+	if err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+	if configured.CatalogPath != catalogPath || store.saved != configured {
+		t.Fatalf("configured = %#v, saved = %#v, want catalog path %q", configured, store.saved, catalogPath)
+	}
+	if len(reader.paths) != 1 || reader.paths[0] != catalogPath {
+		t.Fatalf("reader paths = %#v, want nested catalog first", reader.paths)
+	}
+}
+
+func TestCatalogConfigCandidatesDoesNotAppendToExplicitAgentsSkillsPath(t *testing.T) {
+	catalogPath := filepath.Join(t.TempDir(), ".agents", "skills")
+	candidates, err := catalogConfigCandidates(catalogPath)
+	if err != nil {
+		t.Fatalf("catalogConfigCandidates() error = %v", err)
+	}
+	if len(candidates) != 1 || candidates[0].CatalogPath != catalogPath {
+		t.Fatalf("candidates = %#v, want only %q", candidates, catalogPath)
 	}
 }
 

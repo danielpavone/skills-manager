@@ -22,20 +22,23 @@ Os instaladores aceitam `SKILLS_MANAGER_REPO`, `SKILLS_MANAGER_VERSION`, `SKILLS
 
 ## Configuração e uso
 
-O caminho configurado deve conter uma pasta por skill, e cada pasta precisa de um `SKILL.md` legível:
+Informe a pasta do repositório de skills. A CLI procura automaticamente o catálogo em `.agents/skills`, onde cada pasta de skill precisa de um `SKILL.md` legível:
 
 ```text
-~/skills/
-├── code-review/SKILL.md
-└── tdd/SKILL.md
+~/skills-repository/
+└── .agents/skills/
+    ├── code-review/SKILL.md
+    └── tdd/SKILL.md
 ```
 
 Configure ou consulte o catálogo:
 
 ```sh
-skills-manager config set ~/skills
+skills-manager config set ~/skills-repository
 skills-manager config show
 ```
+
+Para compatibilidade, também é possível informar diretamente o caminho completo de `.agents/skills` ou outro diretório que já contenha as pastas das skills.
 
 Na raiz do projeto, execute `skills-manager` para abrir a TUI. A confirmação cria apenas os links simbólicos selecionados; links corretos são preservados, conflitos não são sobrescritos e a remoção exclui somente o vínculo local.
 
