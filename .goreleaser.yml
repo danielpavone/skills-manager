@@ -28,7 +28,7 @@ archives:
       - goos: windows
         formats:
           - zip
-    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}_{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}_{{ .Amd64 }}{{ end }}'
+    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}'
     files:
       - none*
 
