@@ -1,0 +1,45 @@
+version: 2
+
+project_name: skills-manager
+
+builds:
+  - id: skills-manager
+    main: ./cmd/skills-manager
+    binary: skills-manager
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: skills-manager
+    ids:
+      - skills-manager
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}_{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}_{{ .Amd64 }}{{ end }}'
+    files:
+      - none*
+
+checksum:
+  name_template: skills-manager_checksums.txt
+  algorithm: sha256
+
+release:
+  extra_files:
+    - glob: scripts/install.sh
+    - glob: scripts/install.ps1
+
+snapshot:
+  version_template: '{{ incpatch .Version }}-next'
