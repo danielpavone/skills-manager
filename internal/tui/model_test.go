@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 	"github.com/danielpavone/skills-manager/internal/project"
 )
@@ -71,6 +72,14 @@ func TestModelResizeKeepsListWithinSmallTerminal(t *testing.T) {
 	if strings.TrimSpace(model.View().Content) == "" {
 		t.Fatal("small terminal rendered an empty view")
 	}
+}
+
+func TestModelKeepsEveryRenderedLineWithinSmallTerminal(t *testing.T) {
+	model := NewModel(testAssessments())
+	model = updateModel(t, model, tea.WindowSizeMsg{Width: 24, Height: 5})
+	assertLinesFitWidth(t, model.View().Content, 24)
+	model = updateModel(t, model, keyPress("enter"))
+	assertLinesFitWidth(t, model.View().Content, 24)
 }
 
 func TestModelSelectionExcludesLockedStates(t *testing.T) {
@@ -157,5 +166,14 @@ func assertContains(t *testing.T, text, expected string) {
 	t.Helper()
 	if !strings.Contains(text, expected) {
 		t.Fatalf("view %q does not contain %q", text, expected)
+	}
+}
+
+func assertLinesFitWidth(t *testing.T, view string, expectedWidth int) {
+	t.Helper()
+	for _, line := range strings.Split(view, "\n") {
+		if width := ansi.StringWidth(line); width > expectedWidth {
+			t.Fatalf("rendered line width = %d for %q, want at most %d", width, line, expectedWidth)
+		}
 	}
 }

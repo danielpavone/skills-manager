@@ -10,6 +10,7 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/danielpavone/skills-manager/internal/project"
 )
 
@@ -162,7 +163,7 @@ func (m Model) renderList() string {
 	title := m.styles.title.Render("skills-manager — catálogo")
 	search := "pesquisa: " + m.list.FilterValue()
 	help := m.styles.muted.Render("/ pesquisar • ↑/↓ ou j/k mover • space selecionar • enter confirmar • esc/q cancelar")
-	return strings.Join([]string{title, search, m.list.View(), help}, "\n")
+	return fitViewWidth([]string{title, search, m.list.View(), help}, m.width)
 }
 
 func (m Model) renderConfirmation() string {
@@ -173,7 +174,17 @@ func (m Model) renderConfirmation() string {
 		fmt.Sprintf("selecionadas: %d • conflitos bloqueados: %d", selected, locked),
 		"y confirmar • esc voltar • q cancelar",
 	}
-	return strings.Join(lines, "\n")
+	return fitViewWidth(lines, m.width)
+}
+
+func fitViewWidth(lines []string, width int) string {
+	fitted := make([]string, 0, len(lines))
+	for _, section := range lines {
+		for _, line := range strings.Split(section, "\n") {
+			fitted = append(fitted, ansi.Truncate(line, maxWidth(width), "…"))
+		}
+	}
+	return strings.Join(fitted, "\n")
 }
 
 func (m Model) Selection() (project.Selection, error) {
