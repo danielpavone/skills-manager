@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 )
 
@@ -31,6 +32,24 @@ func TestFilesystemLinksApplyInstallsAbsoluteLinksInEmptyProject(t *testing.T) {
 		if actual != skill.sourcePath || !filepath.IsAbs(actual) {
 			t.Fatalf("link target = %q, want absolute %q", actual, skill.sourcePath)
 		}
+	}
+}
+
+func TestFilesystemLinksApplyInstallsInClaudeAndDevinDirectories(t *testing.T) {
+	for _, target := range []agentdir.Directory{agentdir.Claude, agentdir.Devin} {
+		t.Run(string(target), func(t *testing.T) {
+			catalogRoot := t.TempDir()
+			projectRoot := t.TempDir()
+			skill := createApplySkill(t, catalogRoot, "tdd")
+			linkPath := filepath.Join(agentdir.SkillsPath(projectRoot, target), skill.name)
+			change := SelectionChange{Skill: catalogSkill(skill), LinkPath: linkPath, Action: ActionInstall}
+
+			result := NewFilesystemLinks().Apply(context.Background(), projectRoot, []SelectionChange{change})
+			actual, err := os.Readlink(linkPath)
+			if result.HasFailures || err != nil || actual != skill.sourcePath {
+				t.Fatalf("result = %#v, link = %q, error = %v; want %q", result, actual, err, skill.sourcePath)
+			}
+		})
 	}
 }
 
@@ -135,7 +154,7 @@ func TestFilesystemLinksApplyPlanKeepsLinksWhenProjectReopens(t *testing.T) {
 	if result := links.Apply(context.Background(), projectRoot, []SelectionChange{change}); result.HasFailures {
 		t.Fatalf("initial installation failed: %#v", result)
 	}
-	assessments, err := links.Inspect(context.Background(), projectRoot, []catalog.Skill{catalogSkill(skill)})
+	assessments, err := links.Inspect(context.Background(), projectRoot, agentdir.Agents, []catalog.Skill{catalogSkill(skill)})
 	if err != nil {
 		t.Fatalf("Inspect() error = %v", err)
 	}

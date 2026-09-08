@@ -2,8 +2,8 @@ package app
 
 import (
 	"context"
-	"path/filepath"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 	"github.com/danielpavone/skills-manager/internal/config"
 )
@@ -27,10 +27,18 @@ func NewCatalogConfigurator(store ConfigStore, reader CatalogReader) CatalogConf
 }
 
 func (c CatalogConfigurator) Set(ctx context.Context, catalogPath string) (config.CatalogConfig, error) {
-	candidates, err := catalogConfigCandidates(catalogPath)
+	return c.SetForTarget(ctx, catalogPath, agentdir.Agents)
+}
+
+func (c CatalogConfigurator) SetForTarget(ctx context.Context, catalogPath string, target agentdir.Directory) (config.CatalogConfig, error) {
+	candidates, err := catalogConfigCandidates(catalogPath, target)
 	if err != nil {
 		return config.CatalogConfig{}, err
 	}
+	return c.saveFirstReadable(ctx, candidates)
+}
+
+func (c CatalogConfigurator) saveFirstReadable(ctx context.Context, candidates []config.CatalogConfig) (config.CatalogConfig, error) {
 	var readErr error
 	for _, candidate := range candidates {
 		if _, readErr = c.reader.Read(ctx, candidate.CatalogPath); readErr != nil {
@@ -44,15 +52,16 @@ func (c CatalogConfigurator) Set(ctx context.Context, catalogPath string) (confi
 	return config.CatalogConfig{}, readErr
 }
 
-func catalogConfigCandidates(catalogPath string) ([]config.CatalogConfig, error) {
-	direct, err := config.NewCatalogConfig(catalogPath)
+func catalogConfigCandidates(catalogPath string, target agentdir.Directory) ([]config.CatalogConfig, error) {
+	direct, err := config.NewCatalogConfigForTarget(catalogPath, target)
 	if err != nil {
 		return nil, err
 	}
-	if filepath.Base(direct.CatalogPath) == "skills" && filepath.Base(filepath.Dir(direct.CatalogPath)) == ".agents" {
+	if _, err := agentdir.FromSkillsPath(direct.CatalogPath); err == nil {
 		return []config.CatalogConfig{direct}, nil
 	}
-	nested, err := config.NewCatalogConfig(filepath.Join(direct.CatalogPath, ".agents", "skills"))
+	nestedPath := agentdir.SkillsPath(direct.CatalogPath, target)
+	nested, err := config.NewCatalogConfigForTarget(nestedPath, target)
 	if err != nil {
 		return nil, err
 	}

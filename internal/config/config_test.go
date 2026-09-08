@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 )
 
 func TestNewCatalogConfigNormalizesAbsolutePath(t *testing.T) {
@@ -18,6 +20,33 @@ func TestNewCatalogConfigNormalizesAbsolutePath(t *testing.T) {
 	if configured.SchemaVersion != CurrentSchemaVersion {
 		t.Fatalf("SchemaVersion = %d, want %d", configured.SchemaVersion, CurrentSchemaVersion)
 	}
+	if configured.EffectiveTargetDirectory() != agentdir.Agents {
+		t.Fatalf("TargetDirectory = %q, want .agents", configured.TargetDirectory)
+	}
+}
+
+func TestNewCatalogConfigAcceptsClaudeAndDevinTargets(t *testing.T) {
+	for _, target := range []agentdir.Directory{agentdir.Claude, agentdir.Devin} {
+		configured, err := NewCatalogConfigForTarget("/catalog", target)
+		if err != nil || configured.TargetDirectory != target {
+			t.Fatalf("NewCatalogConfigForTarget(%q) = %#v, %v", target, configured, err)
+		}
+	}
+}
+
+func TestCatalogConfigUsesAgentsForLegacyConfiguration(t *testing.T) {
+	configured := CatalogConfig{SchemaVersion: CurrentSchemaVersion, CatalogPath: "/catalog"}
+	if err := configured.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if configured.EffectiveTargetDirectory() != agentdir.Agents {
+		t.Fatalf("EffectiveTargetDirectory() = %q, want .agents", configured.EffectiveTargetDirectory())
+	}
+}
+
+func TestNewCatalogConfigRejectsUnsupportedTarget(t *testing.T) {
+	_, err := NewCatalogConfigForTarget("/catalog", agentdir.Directory(".cursor"))
+	assertConfigError(t, err, ErrorConfigInvalid, ".cursor")
 }
 
 func TestNewCatalogConfigRejectsEmptyPath(t *testing.T) {

@@ -3,6 +3,7 @@ package project
 import (
 	"path/filepath"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 )
 
@@ -101,10 +102,10 @@ func validateAssessment(assessment LinkAssessment) error {
 		return err
 	}
 	if !filepath.IsAbs(assessment.LinkPath) || filepath.Clean(assessment.LinkPath) != assessment.LinkPath {
-		return selectionError(assessment.LinkPath, "link_path absoluto e limpo dentro de .agents/skills")
+		return selectionError(assessment.LinkPath, "link_path absoluto e limpo dentro de um diretório de skills suportado")
 	}
 	if filepath.Base(assessment.LinkPath) != assessment.Skill.Name || !isSkillsDirectory(filepath.Dir(assessment.LinkPath)) {
-		return selectionError(assessment.LinkPath, "destino direto <projeto>/.agents/skills/<nome>")
+		return selectionError(assessment.LinkPath, "destino direto <projeto>/{.agents,.claude,.devin}/skills/<nome>")
 	}
 	if !isKnownLinkState(assessment.State) {
 		return selectionError(string(assessment.State), "estado de vínculo válido")
@@ -120,7 +121,8 @@ func validateSkillName(name string) error {
 }
 
 func isSkillsDirectory(path string) bool {
-	return filepath.Base(path) == "skills" && filepath.Base(filepath.Dir(path)) == ".agents"
+	_, err := agentdir.FromSkillsPath(path)
+	return err == nil
 }
 
 func isKnownLinkState(state LinkState) bool {

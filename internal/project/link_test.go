@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 )
 
@@ -23,7 +24,7 @@ func TestFilesystemLinksClassifiesFiveLinkStates(t *testing.T) {
 	writeFile(t, filepath.Join(projectRoot, ".agents/skills/conflict"))
 
 	skills := catalogSkills(catalogRoot, "absent", "installed", "broken", "wrong", "conflict")
-	assessments, err := NewFilesystemLinks().Inspect(context.Background(), projectRoot, skills)
+	assessments, err := NewFilesystemLinks().Inspect(context.Background(), projectRoot, agentdir.Agents, skills)
 	if err != nil {
 		t.Fatalf("Inspect() error = %v", err)
 	}
@@ -62,9 +63,26 @@ func TestInspectLinkUsesAbsoluteCleanDestinationAndSameFileIdentity(t *testing.T
 func TestFilesystemLinksRejectsCanceledInspection(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := NewFilesystemLinks().Inspect(ctx, t.TempDir(), nil)
+	_, err := NewFilesystemLinks().Inspect(ctx, t.TempDir(), agentdir.Agents, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Inspect() error = %v, want context canceled", err)
+	}
+}
+
+func TestFilesystemLinksInspectsConfiguredDevinDirectory(t *testing.T) {
+	catalogRoot := t.TempDir()
+	projectRoot := t.TempDir()
+	makeCatalogSkills(t, catalogRoot, "tdd")
+
+	assessments, err := NewFilesystemLinks().Inspect(
+		context.Background(), projectRoot, agentdir.Devin, catalogSkills(catalogRoot, "tdd"),
+	)
+	if err != nil {
+		t.Fatalf("Inspect() error = %v", err)
+	}
+	want := filepath.Join(projectRoot, ".devin", "skills", "tdd")
+	if assessments[0].LinkPath != want || assessments[0].State != LinkAbsent {
+		t.Fatalf("assessment = %#v, want absent link at %q", assessments[0], want)
 	}
 }
 

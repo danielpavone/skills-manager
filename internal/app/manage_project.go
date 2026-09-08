@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 	"github.com/danielpavone/skills-manager/internal/project"
 )
@@ -11,7 +12,7 @@ import (
 var ErrSelectionCanceled = errors.New("seleção cancelada pelo usuário")
 
 type ProjectLinks interface {
-	Inspect(ctx context.Context, projectPath string, skills []catalog.Skill) ([]project.LinkAssessment, error)
+	Inspect(ctx context.Context, projectPath string, target agentdir.Directory, skills []catalog.Skill) ([]project.LinkAssessment, error)
 	Apply(ctx context.Context, projectPath string, changes []project.SelectionChange) project.BatchResult
 }
 
@@ -54,7 +55,7 @@ func (m ManageProject) inspectProject(ctx context.Context, projectPath string) (
 	if err != nil {
 		return nil, err
 	}
-	return m.links.Inspect(ctx, projectPath, skills)
+	return m.links.Inspect(ctx, projectPath, configured.EffectiveTargetDirectory(), skills)
 }
 
 func (m ManageProject) planChanges(ctx context.Context, assessments []project.LinkAssessment) ([]project.SelectionChange, error) {

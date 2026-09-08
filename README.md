@@ -1,6 +1,6 @@
 # skills-manager
 
-CLI em Go para selecionar skills de um catálogo local e disponibilizá-las no projeto por links simbólicos em `.agents/skills`. O catálogo continua sendo a fonte de verdade: alterações feitas na origem aparecem nos projetos vinculados sem reinstalação.
+CLI em Go para selecionar skills de um catálogo local e disponibilizá-las no projeto por links simbólicos em `.agents/skills`, `.claude/skills` ou `.devin/skills`. O catálogo continua sendo a fonte de verdade: alterações feitas na origem aparecem nos projetos vinculados sem reinstalação.
 
 ## Instalação
 
@@ -20,9 +20,9 @@ Os instaladores baixam o arquivo compactado e `skills-manager_checksums.txt` por
 
 Os instaladores aceitam `SKILLS_MANAGER_REPO`, `SKILLS_MANAGER_VERSION`, `SKILLS_MANAGER_INSTALL_DIR` e `SKILLS_MANAGER_DOWNLOAD_BASE_URL` para releases alternativas. A URL-base deve ser HTTPS fora dos testes.
 
-## Configuração e uso
+## Configuração inicial
 
-Informe a pasta do repositório de skills. A CLI procura automaticamente o catálogo em `.agents/skills`, onde cada pasta de skill precisa de um `SKILL.md` legível:
+Informe a raiz do repositório de skills com `config set`. Cada skill deve ser uma pasta contendo um `SKILL.md` legível:
 
 ```text
 ~/skills-repository/
@@ -31,16 +31,54 @@ Informe a pasta do repositório de skills. A CLI procura automaticamente o catá
     └── tdd/SKILL.md
 ```
 
-Configure ou consulte o catálogo:
+Sem opções adicionais, a CLI procura o catálogo em `<repositório>/.agents/skills` e instala os links em `<projeto>/.agents/skills`:
 
 ```sh
 skills-manager config set ~/skills-repository
+```
+
+Use `--target` no setup para escolher outra convenção. Um destino fica ativo por vez:
+
+| Opção | Catálogo procurado a partir da raiz | Destino no projeto |
+| --- | --- | --- |
+| omitida ou `--target .agents` | `.agents/skills` | `.agents/skills` |
+| `--target .claude` | `.claude/skills` | `.claude/skills` |
+| `--target .devin` | `.devin/skills` | `.devin/skills` |
+
+```sh
+skills-manager config set ~/skills-repository --target .claude
+skills-manager config set ~/skills-repository --target .devin
+```
+
+Também é possível informar diretamente uma pasta que já contenha as skills. Nesse caso, o caminho é usado como catálogo, enquanto `--target` continua definindo onde os links serão instalados no projeto:
+
+```sh
+skills-manager config set ~/skills-repository/catalog --target .claude
+```
+
+Consulte a configuração ativa com:
+
+```sh
 skills-manager config show
 ```
 
-Para compatibilidade, também é possível informar diretamente o caminho completo de `.agents/skills` ou outro diretório que já contenha as pastas das skills.
+Exemplo de saída:
 
-Na raiz do projeto, execute `skills-manager` para abrir a TUI. A confirmação cria apenas os links simbólicos selecionados; links corretos são preservados, conflitos não são sobrescritos e a remoção exclui somente o vínculo local.
+```text
+catálogo: /Users/alice/skills-repository/.claude/skills
+destino: .claude/skills
+```
+
+Configurações criadas por versões anteriores, sem um destino salvo, continuam procurando e instalando em `.agents/skills`.
+
+## Gerenciando as skills do projeto
+
+Na raiz do projeto, execute `skills-manager` para abrir a TUI. A confirmação cria os links no destino configurado; links corretos são preservados, conflitos não são sobrescritos e a remoção exclui somente o vínculo local.
+
+```sh
+cd ~/projects/my-project
+skills-manager
+```
 
 Atalhos principais:
 

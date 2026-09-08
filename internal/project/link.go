@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 )
 
@@ -95,21 +96,28 @@ func NewFilesystemLinksWithFileSystem(fileSystem FileSystem) FilesystemLinks {
 	return FilesystemLinks{fileSystem: fileSystem}
 }
 
-func (f FilesystemLinks) Inspect(ctx context.Context, projectPath string, skills []catalog.Skill) ([]LinkAssessment, error) {
+func (f FilesystemLinks) Inspect(ctx context.Context, projectPath string, target agentdir.Directory, skills []catalog.Skill) ([]LinkAssessment, error) {
 	f = f.withDefaultFileSystem()
 	if err := contextError(ctx); err != nil {
 		return nil, err
+	}
+	if _, err := agentdir.Parse(string(target)); err != nil {
+		return nil, selectionError(string(target), "diretório .agents, .claude ou .devin")
 	}
 	absoluteProject, err := absoluteProjectPath(projectPath)
 	if err != nil {
 		return nil, err
 	}
+	return f.inspectSkills(ctx, absoluteProject, target, skills)
+}
+
+func (f FilesystemLinks) inspectSkills(ctx context.Context, projectPath string, target agentdir.Directory, skills []catalog.Skill) ([]LinkAssessment, error) {
 	assessments := make([]LinkAssessment, 0, len(skills))
 	for _, skill := range skills {
 		if err := contextError(ctx); err != nil {
 			return nil, err
 		}
-		assessment, err := inspectSkillLink(ctx, f.fileSystem, absoluteProject, skill)
+		assessment, err := inspectSkillLink(ctx, f.fileSystem, projectPath, target, skill)
 		if err != nil {
 			return nil, err
 		}
@@ -119,10 +127,10 @@ func (f FilesystemLinks) Inspect(ctx context.Context, projectPath string, skills
 }
 
 func InspectLink(ctx context.Context, projectPath string, skill catalog.Skill) (LinkAssessment, error) {
-	return NewFilesystemLinks().inspectOne(ctx, projectPath, skill)
+	return NewFilesystemLinks().inspectOne(ctx, projectPath, agentdir.Agents, skill)
 }
 
-func (f FilesystemLinks) inspectOne(ctx context.Context, projectPath string, skill catalog.Skill) (LinkAssessment, error) {
+func (f FilesystemLinks) inspectOne(ctx context.Context, projectPath string, target agentdir.Directory, skill catalog.Skill) (LinkAssessment, error) {
 	f = f.withDefaultFileSystem()
 	if err := contextError(ctx); err != nil {
 		return LinkAssessment{}, err
@@ -131,7 +139,7 @@ func (f FilesystemLinks) inspectOne(ctx context.Context, projectPath string, ski
 	if err != nil {
 		return LinkAssessment{}, err
 	}
-	return inspectSkillLink(ctx, f.fileSystem, absoluteProject, skill)
+	return inspectSkillLink(ctx, f.fileSystem, absoluteProject, target, skill)
 }
 
 func (f FilesystemLinks) withDefaultFileSystem() FilesystemLinks {
@@ -141,11 +149,11 @@ func (f FilesystemLinks) withDefaultFileSystem() FilesystemLinks {
 	return NewFilesystemLinks()
 }
 
-func inspectSkillLink(ctx context.Context, fileSystem FileSystem, projectPath string, skill catalog.Skill) (LinkAssessment, error) {
+func inspectSkillLink(ctx context.Context, fileSystem FileSystem, projectPath string, target agentdir.Directory, skill catalog.Skill) (LinkAssessment, error) {
 	if err := validateSkill(skill); err != nil {
 		return LinkAssessment{}, err
 	}
-	linkPath := filepath.Join(projectPath, ".agents", "skills", skill.Name)
+	linkPath := filepath.Join(agentdir.SkillsPath(projectPath, target), skill.Name)
 	if err := validateLocalParents(fileSystem, linkPath); err != nil {
 		return LinkAssessment{}, err
 	}

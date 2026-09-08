@@ -15,8 +15,8 @@ func TestCompiledCLIConfiguresAndShowsCatalog(t *testing.T) {
 	configRoot := t.TempDir()
 	runTestCLI(t, binaryPath, configRoot, "config", "set", rootPath)
 	output := runTestCLI(t, binaryPath, configRoot, "config", "show")
-	if strings.TrimSpace(output) != catalogPath {
-		t.Fatalf("config show output = %q, want %q", output, catalogPath)
+	if !strings.Contains(output, "catálogo: "+catalogPath) || !strings.Contains(output, "destino: .agents/skills") {
+		t.Fatalf("config show output = %q, want catalog and default target", output)
 	}
 	settings := filepath.Join(configRoot, "skills-manager", "config.json")
 	if runtime.GOOS == "darwin" {

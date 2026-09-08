@@ -3,13 +3,16 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 )
 
 const CurrentSchemaVersion = 1
 
 type CatalogConfig struct {
-	SchemaVersion int    `json:"schema_version"`
-	CatalogPath   string `json:"catalog_path"`
+	SchemaVersion   int                `json:"schema_version"`
+	CatalogPath     string             `json:"catalog_path"`
+	TargetDirectory agentdir.Directory `json:"target_directory,omitempty"`
 }
 
 type ErrorCode string
@@ -39,21 +42,34 @@ func (e *DomainError) Unwrap() error {
 }
 
 func NewCatalogConfig(catalogPath string) (CatalogConfig, error) {
-	if catalogPath == "" {
-		return CatalogConfig{}, invalidConfig(catalogPath, "caminho para um diretório de catálogo", nil)
-	}
-	absolutePath, err := filepath.Abs(catalogPath)
+	return NewCatalogConfigForTarget(catalogPath, agentdir.Agents)
+}
+
+func NewCatalogConfigForTarget(catalogPath string, target agentdir.Directory) (CatalogConfig, error) {
+	absolutePath, err := normalizeCatalogPath(catalogPath)
 	if err != nil {
-		return CatalogConfig{}, invalidConfig(catalogPath, "caminho absoluto para um diretório de catálogo", err)
+		return CatalogConfig{}, err
 	}
 	configured := CatalogConfig{
-		SchemaVersion: CurrentSchemaVersion,
-		CatalogPath:   filepath.Clean(absolutePath),
+		SchemaVersion:   CurrentSchemaVersion,
+		CatalogPath:     filepath.Clean(absolutePath),
+		TargetDirectory: target,
 	}
 	if err := configured.Validate(); err != nil {
 		return CatalogConfig{}, err
 	}
 	return configured, nil
+}
+
+func normalizeCatalogPath(catalogPath string) (string, error) {
+	if catalogPath == "" {
+		return "", invalidConfig(catalogPath, "caminho para um diretório de catálogo", nil)
+	}
+	absolutePath, err := filepath.Abs(catalogPath)
+	if err != nil {
+		return "", invalidConfig(catalogPath, "caminho absoluto para um diretório de catálogo", err)
+	}
+	return filepath.Clean(absolutePath), nil
 }
 
 func (c CatalogConfig) Validate() error {
@@ -66,7 +82,17 @@ func (c CatalogConfig) Validate() error {
 	if filepath.Clean(c.CatalogPath) != c.CatalogPath {
 		return invalidConfig(c.CatalogPath, "caminho absoluto e limpo para um diretório de catálogo", nil)
 	}
+	if _, err := agentdir.Parse(string(c.EffectiveTargetDirectory())); err != nil {
+		return invalidConfig(string(c.TargetDirectory), "diretório .agents, .claude ou .devin", err)
+	}
 	return nil
+}
+
+func (c CatalogConfig) EffectiveTargetDirectory() agentdir.Directory {
+	if c.TargetDirectory == "" {
+		return agentdir.Agents
+	}
+	return c.TargetDirectory
 }
 
 func invalidConfig(value, expected string, cause error) error {

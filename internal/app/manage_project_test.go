@@ -6,23 +6,26 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 	"github.com/danielpavone/skills-manager/internal/config"
 	"github.com/danielpavone/skills-manager/internal/project"
 )
 
 type FakeProjectLinks struct {
-	assessments []project.LinkAssessment
-	inspectErr  error
-	result      project.BatchResult
-	inspectPath string
-	applyPath   string
-	changes     []project.SelectionChange
-	applyCalls  int
+	assessments   []project.LinkAssessment
+	inspectErr    error
+	result        project.BatchResult
+	inspectPath   string
+	inspectTarget agentdir.Directory
+	applyPath     string
+	changes       []project.SelectionChange
+	applyCalls    int
 }
 
-func (f *FakeProjectLinks) Inspect(_ context.Context, projectPath string, _ []catalog.Skill) ([]project.LinkAssessment, error) {
+func (f *FakeProjectLinks) Inspect(_ context.Context, projectPath string, target agentdir.Directory, _ []catalog.Skill) ([]project.LinkAssessment, error) {
 	f.inspectPath = projectPath
+	f.inspectTarget = target
 	return f.assessments, f.inspectErr
 }
 
@@ -64,6 +67,9 @@ func TestManageProjectRunsTheProjectWorkflowInOrder(t *testing.T) {
 	if links.inspectPath != projectPath || links.applyPath != projectPath {
 		t.Fatalf("project paths = %q and %q, want %q", links.inspectPath, links.applyPath, projectPath)
 	}
+	if links.inspectTarget != agentdir.Agents {
+		t.Fatalf("inspect target = %q, want .agents", links.inspectTarget)
+	}
 	if ui.chooseCalls != 1 || len(ui.assessments) != 1 || links.applyCalls != 1 {
 		t.Fatalf("workflow calls = choose %d, assessments %d, apply %d", ui.chooseCalls, len(ui.assessments), links.applyCalls)
 	}
@@ -72,6 +78,21 @@ func TestManageProjectRunsTheProjectWorkflowInOrder(t *testing.T) {
 	}
 	if len(links.changes) != 1 || links.changes[0].Action != project.ActionInstall {
 		t.Fatalf("changes = %#v, want install", links.changes)
+	}
+}
+
+func TestManageProjectUsesConfiguredClaudeDirectory(t *testing.T) {
+	links := &FakeProjectLinks{}
+	configured := config.CatalogConfig{
+		SchemaVersion: config.CurrentSchemaVersion, CatalogPath: "/catalog", TargetDirectory: agentdir.Claude,
+	}
+	useCase := NewManageProject(&FakeConfigStore{loaded: configured}, &FakeCatalogReader{}, links, &FakeSelectionUI{})
+
+	if _, err := useCase.Manage(context.Background(), t.TempDir()); err != nil {
+		t.Fatalf("Manage() error = %v", err)
+	}
+	if links.inspectTarget != agentdir.Claude {
+		t.Fatalf("inspect target = %q, want .claude", links.inspectTarget)
 	}
 }
 

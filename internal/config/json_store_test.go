@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 )
 
 func TestJSONStorePersistsAndReloadsConfiguration(t *testing.T) {
@@ -26,6 +28,19 @@ func TestJSONStorePersistsAndReloadsConfiguration(t *testing.T) {
 	}
 	if mode := fileMode(t, filepath.Join(directory, "settings", configFileName)); runtime.GOOS != "windows" && mode.Perm() != 0600 {
 		t.Fatalf("config mode = %o, want 600", mode.Perm())
+	}
+}
+
+func TestJSONStoreLoadsLegacyConfigurationWithAgentsDefault(t *testing.T) {
+	directory := t.TempDir()
+	legacy := `{"schema_version":1,"catalog_path":"/catalog"}`
+	if err := os.WriteFile(filepath.Join(directory, configFileName), []byte(legacy), 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	configured, err := NewJSONStore(directory).Load(context.Background())
+	if err != nil || configured.EffectiveTargetDirectory() != agentdir.Agents {
+		t.Fatalf("Load() = %#v, %v, want legacy .agents default", configured, err)
 	}
 }
 

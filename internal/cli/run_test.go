@@ -44,8 +44,39 @@ func TestRunnerConfigSetAndShow(t *testing.T) {
 	if exitCode := runner.Run(context.Background(), []string{"config", "show"}); exitCode != SuccessExitCode {
 		t.Fatalf("show exit code = %d, want 0; error = %s", exitCode, errorOutput.String())
 	}
-	if strings.TrimSpace(output.String()) != catalogPath {
-		t.Fatalf("show output = %q, want %q", output.String(), catalogPath)
+	if !strings.Contains(output.String(), "catálogo: "+catalogPath) || !strings.Contains(output.String(), "destino: .agents/skills") {
+		t.Fatalf("show output = %q, want catalog and default target", output.String())
+	}
+}
+
+func TestRunnerConfiguresClaudeTargetDuringSetup(t *testing.T) {
+	rootPath := t.TempDir()
+	catalogPath := filepath.Join(rootPath, ".claude", "skills")
+	createCLISkill(t, catalogPath)
+	store := config.NewJSONStore(filepath.Join(t.TempDir(), "settings"))
+	var output, errorOutput bytes.Buffer
+	runner := NewRunner(app.NewCatalogConfigurator(store, catalog.NewFilesystemReader()), "dev", &output, &errorOutput)
+
+	exitCode := runner.Run(context.Background(), []string{"config", "set", rootPath, "--target", ".claude"})
+	if exitCode != SuccessExitCode {
+		t.Fatalf("set exit code = %d, want 0; error = %s", exitCode, errorOutput.String())
+	}
+	configured, err := store.Load(context.Background())
+	if err != nil || configured.CatalogPath != catalogPath || string(configured.TargetDirectory) != ".claude" {
+		t.Fatalf("configured = %#v, error = %v, want Claude target", configured, err)
+	}
+}
+
+func TestRunnerRejectsUnsupportedSetupTarget(t *testing.T) {
+	var output, errorOutput bytes.Buffer
+	runner := NewRunner(
+		app.NewCatalogConfigurator(config.NewJSONStore(t.TempDir()), catalog.NewFilesystemReader()),
+		"dev", &output, &errorOutput,
+	)
+
+	exitCode := runner.Run(context.Background(), []string{"config", "set", "/catalog", "--target", ".cursor"})
+	if exitCode != UsageExitCode || !strings.Contains(errorOutput.String(), ".cursor") {
+		t.Fatalf("exit code = %d, error = %q, want usage error with target", exitCode, errorOutput.String())
 	}
 }
 
@@ -143,8 +174,8 @@ func TestRunnerReturnsFailureAndPrintsPartialBatch(t *testing.T) {
 func createCLISkill(t *testing.T, root string) {
 	t.Helper()
 	path := filepath.Join(root, "tdd")
-	if err := os.Mkdir(path, 0700); err != nil {
-		t.Fatalf("Mkdir() error = %v", err)
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(path, "SKILL.md"), []byte("# tdd"), 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)

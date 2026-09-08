@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/catalog"
 	"github.com/danielpavone/skills-manager/internal/config"
 )
@@ -94,12 +95,27 @@ func TestCatalogConfiguratorSetFindsAgentsSkillsBelowGivenDirectory(t *testing.T
 
 func TestCatalogConfigCandidatesDoesNotAppendToExplicitAgentsSkillsPath(t *testing.T) {
 	catalogPath := filepath.Join(t.TempDir(), ".agents", "skills")
-	candidates, err := catalogConfigCandidates(catalogPath)
+	candidates, err := catalogConfigCandidates(catalogPath, agentdir.Agents)
 	if err != nil {
 		t.Fatalf("catalogConfigCandidates() error = %v", err)
 	}
 	if len(candidates) != 1 || candidates[0].CatalogPath != catalogPath {
 		t.Fatalf("candidates = %#v, want only %q", candidates, catalogPath)
+	}
+}
+
+func TestCatalogConfiguratorSetFindsClaudeSkillsForConfiguredTarget(t *testing.T) {
+	rootPath := filepath.Join(t.TempDir(), "skills-repository")
+	catalogPath := filepath.Join(rootPath, ".claude", "skills")
+	store := &FakeConfigStore{}
+	reader := &FakeCatalogReader{skills: []catalog.Skill{{Name: "tdd"}}, validCatalogPath: catalogPath}
+
+	configured, err := NewCatalogConfigurator(store, reader).SetForTarget(context.Background(), rootPath, agentdir.Claude)
+	if err != nil {
+		t.Fatalf("SetForTarget() error = %v", err)
+	}
+	if configured.CatalogPath != catalogPath || configured.TargetDirectory != agentdir.Claude {
+		t.Fatalf("configured = %#v, want Claude catalog %q", configured, catalogPath)
 	}
 }
 

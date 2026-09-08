@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/app"
+	"github.com/danielpavone/skills-manager/internal/config"
 	"github.com/danielpavone/skills-manager/internal/project"
 	"github.com/danielpavone/skills-manager/internal/summary"
 )
@@ -90,23 +92,58 @@ func (r Runner) writeBatchSummary(result project.BatchResult) {
 }
 
 func (r Runner) runConfig(ctx context.Context, args []string) int {
-	if len(args) == 2 && args[0] == "set" {
-		configured, err := r.catalog.Set(ctx, args[1])
-		if err != nil {
-			return r.writeError(err.Error())
-		}
-		fmt.Fprintf(r.output, "catálogo configurado: %s\n", configured.CatalogPath)
-		return SuccessExitCode
+	if len(args) > 0 && args[0] == "set" {
+		return r.runConfigSet(ctx, args[1:])
 	}
 	if len(args) == 1 && args[0] == "show" {
-		configured, err := r.catalog.Show(ctx)
-		if err != nil {
-			return r.writeError(err.Error())
-		}
-		fmt.Fprintf(r.output, "%s\n", configured.CatalogPath)
-		return SuccessExitCode
+		return r.runConfigShow(ctx)
 	}
-	return r.writeUsage("uso: skills-manager config set <caminho> | skills-manager config show")
+	return r.writeUsage(configUsage())
+}
+
+func (r Runner) runConfigSet(ctx context.Context, args []string) int {
+	catalogPath, target, err := parseConfigSetArgs(args)
+	if err != nil {
+		return r.writeUsage(err.Error())
+	}
+	configured, err := r.catalog.SetForTarget(ctx, catalogPath, target)
+	if err != nil {
+		return r.writeError(err.Error())
+	}
+	r.writeConfiguration(configured)
+	return SuccessExitCode
+}
+
+func (r Runner) runConfigShow(ctx context.Context) int {
+	configured, err := r.catalog.Show(ctx)
+	if err != nil {
+		return r.writeError(err.Error())
+	}
+	r.writeConfiguration(configured)
+	return SuccessExitCode
+}
+
+func parseConfigSetArgs(args []string) (string, agentdir.Directory, error) {
+	if len(args) == 1 {
+		return args[0], agentdir.Agents, nil
+	}
+	if len(args) != 3 || args[1] != "--target" {
+		return "", "", errors.New(configUsage())
+	}
+	target, err := agentdir.Parse(args[2])
+	if err != nil {
+		return "", "", err
+	}
+	return args[0], target, nil
+}
+
+func (r Runner) writeConfiguration(configured config.CatalogConfig) {
+	fmt.Fprintf(r.output, "catálogo: %s\n", configured.CatalogPath)
+	fmt.Fprintf(r.output, "destino: %s/skills\n", configured.EffectiveTargetDirectory())
+}
+
+func configUsage() string {
+	return "uso: skills-manager config set <caminho> [--target .agents|.claude|.devin] | skills-manager config show"
 }
 
 func (r Runner) writeVersion() int {

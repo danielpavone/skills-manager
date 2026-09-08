@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/danielpavone/skills-manager/internal/agentdir"
 	"github.com/danielpavone/skills-manager/internal/platform"
 )
 
@@ -49,9 +50,13 @@ func validateChange(projectPath string, change SelectionChange) error {
 	if err != nil {
 		return err
 	}
-	expectedPath := filepath.Join(absoluteProject, ".agents", "skills", change.Skill.Name)
+	target, err := agentdir.FromSkillsPath(filepath.Dir(change.LinkPath))
+	if err != nil {
+		return selectionError(change.LinkPath, "destino direto em .agents/skills, .claude/skills ou .devin/skills")
+	}
+	expectedPath := filepath.Join(agentdir.SkillsPath(absoluteProject, target), change.Skill.Name)
 	if change.LinkPath != expectedPath {
-		return selectionError(change.LinkPath, "destino direto do projeto atual em .agents/skills")
+		return selectionError(change.LinkPath, "destino direto do diretório de skills configurado")
 	}
 	if change.Action != ActionInstall && change.Action != ActionRemove && change.Action != ActionKeep {
 		return selectionError(string(change.Action), "ação install, remove ou keep")
@@ -66,9 +71,10 @@ func (f FilesystemLinks) installLink(ctx context.Context, projectPath string, ch
 		return failedResult(base, err)
 	}
 	if err := fileSystem.MkdirAll(parent, 0700); err != nil {
-		return failedResult(base, filesystemError(parent, "diretório .agents/skills criável", err))
+		return failedResult(base, filesystemError(parent, "diretório de skills configurado criável", err))
 	}
-	assessment, err := inspectSkillLink(ctx, fileSystem, projectPath, change.Skill)
+	target, _ := agentdir.FromSkillsPath(filepath.Dir(change.LinkPath))
+	assessment, err := inspectSkillLink(ctx, fileSystem, projectPath, target, change.Skill)
 	if err != nil {
 		return failedResult(base, err)
 	}
@@ -91,7 +97,8 @@ func createAbsoluteSymlink(fileSystem FileSystem, change SelectionChange, base O
 
 func (f FilesystemLinks) removeLink(ctx context.Context, projectPath string, change SelectionChange, base OperationResult) OperationResult {
 	fileSystem := f.withDefaultFileSystem().fileSystem
-	assessment, err := inspectSkillLink(ctx, fileSystem, projectPath, change.Skill)
+	target, _ := agentdir.FromSkillsPath(filepath.Dir(change.LinkPath))
+	assessment, err := inspectSkillLink(ctx, fileSystem, projectPath, target, change.Skill)
 	if err != nil {
 		return failedResult(base, err)
 	}
