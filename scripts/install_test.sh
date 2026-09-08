@@ -10,12 +10,13 @@ archive_root="$test_root/archive"
 mkdir -p "$fixture_dir" "$archive_root"
 platform_os=$(uname -s)
 case "$platform_os" in
-  Linux|Darwin) ;;
+  Linux) platform_os=linux ;;
+  Darwin) platform_os=darwin ;;
   *) printf '%s\n' "teste do instalador: SO '$platform_os' não suportado" >&2; exit 1 ;;
 esac
 platform_arch=$(uname -m)
 case "$platform_arch" in
-  x86_64|amd64) platform_arch=x86_64 ;;
+  x86_64|amd64) platform_arch=amd64 ;;
   arm64|aarch64) platform_arch=arm64 ;;
   *) printf '%s\n' "teste do instalador: arquitetura '$platform_arch' não suportada" >&2; exit 1 ;;
 esac

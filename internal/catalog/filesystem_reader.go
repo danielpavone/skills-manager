@@ -78,12 +78,17 @@ func isValidSkillDirectory(sourcePath string) bool {
 	if err != nil || !info.IsDir() {
 		return false
 	}
-	manifest, err := os.Open(filepath.Join(sourcePath, "SKILL.md"))
+	manifestPath := filepath.Join(sourcePath, "SKILL.md")
+	manifestInfo, err := os.Stat(manifestPath)
+	if err != nil || !manifestInfo.Mode().IsRegular() {
+		return false
+	}
+	manifest, err := os.Open(manifestPath)
 	if err != nil {
 		return false
 	}
 	defer manifest.Close()
-	manifestInfo, err := manifest.Stat()
+	manifestInfo, err = manifest.Stat()
 	return err == nil && manifestInfo.Mode().IsRegular()
 }
 

@@ -146,6 +146,9 @@ func inspectSkillLink(ctx context.Context, fileSystem FileSystem, projectPath st
 		return LinkAssessment{}, err
 	}
 	linkPath := filepath.Join(projectPath, ".agents", "skills", skill.Name)
+	if err := validateLocalParents(fileSystem, linkPath); err != nil {
+		return LinkAssessment{}, err
+	}
 	if err := contextError(ctx); err != nil {
 		return LinkAssessment{}, err
 	}

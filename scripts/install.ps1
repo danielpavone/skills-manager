@@ -78,10 +78,10 @@ Resolve-DownloadBase
 Validate-DownloadBase
 Resolve-InstallDirectory
 $architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-if ($architecture -eq 'X64') { $archiveArchitecture = 'x86_64' }
+if ($architecture -eq 'X64') { $archiveArchitecture = 'amd64' }
 elseif ($architecture -eq 'Arm64') { $archiveArchitecture = 'arm64' }
 else { Fail "arquitetura '$architecture' não suportada; esperado X64 ou Arm64" }
-$archiveName = "$projectName`_Windows`_$archiveArchitecture.zip"
+$archiveName = "$projectName`_windows`_$archiveArchitecture.zip"
 $checksumName = "${projectName}_checksums.txt"
 $downloadDir = Join-Path ([IO.Path]::GetTempPath()) "skills-manager-download-$([Guid]::NewGuid())"
 New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null

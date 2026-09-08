@@ -21,14 +21,14 @@ require_command() {
 detect_platform() {
   os_name=$(uname -s 2>/dev/null || fail "não foi possível identificar o sistema operacional; esperado Linux ou Darwin")
   case "$os_name" in
-    Linux) platform_os=Linux ;;
-    Darwin) platform_os=Darwin ;;
+    Linux) platform_os=linux ;;
+    Darwin) platform_os=darwin ;;
     *) fail "sistema operacional '$os_name' não suportado; esperado Linux ou Darwin" ;;
   esac
 
   architecture=$(uname -m 2>/dev/null || fail "não foi possível identificar a arquitetura; esperado x86_64 ou arm64")
   case "$architecture" in
-    x86_64|amd64) platform_arch=x86_64 ;;
+    x86_64|amd64) platform_arch=amd64 ;;
     arm64|aarch64) platform_arch=arm64 ;;
     *) fail "arquitetura '$architecture' não suportada; esperado x86_64 ou arm64" ;;
   esac
@@ -128,7 +128,7 @@ choose_install_dir
 
 asset_name="${project_name}_${platform_os}_${platform_arch}"
 case "$platform_os" in
-  Linux|Darwin) archive_name="$asset_name.tar.gz" ;;
+  linux|darwin) archive_name="$asset_name.tar.gz" ;;
 esac
 checksum_name="${project_name}_checksums.txt"
 download_dir=$(mktemp -d "${TMPDIR:-/tmp}/skills-manager-download.XXXXXX") || fail "não foi possível criar diretório temporário; esperado um diretório gravável"

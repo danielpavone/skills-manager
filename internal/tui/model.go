@@ -64,7 +64,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	key, ok := msg.(tea.KeyPressMsg)
 	if !ok {
-		return m, nil
+		return m.updateListMessage(msg)
 	}
 	if m.phase == phaseList {
 		return m.updateList(key)
@@ -76,6 +76,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	return m, nil
+}
+
+func (m Model) updateListMessage(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.phase != phaseList {
+		return m, nil
+	}
+	updated, command := m.list.Update(msg)
+	m.list = updated
+	return m, command
 }
 
 func (m Model) updateList(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -95,9 +104,7 @@ func (m Model) updateList(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.phase = phaseCanceled
 		return m, tea.Quit
 	}
-	updated, cmd := m.list.Update(key)
-	m.list = updated
-	return m, cmd
+	return m.updateListMessage(key)
 }
 
 func (m Model) updateConfirmation(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {

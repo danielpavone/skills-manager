@@ -78,6 +78,21 @@ func (s JSONStore) replaceAtomically(ctx context.Context, content []byte) error 
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
+	defer temporary.Close()
+	if err := writeConfigTemporary(temporary, content); err != nil {
+		return err
+	}
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := os.Rename(temporaryPath, s.filePath); err != nil {
+		return invalidConfig(s.filePath, "arquivo de configuração substituível atomicamente", err)
+	}
+	return nil
+}
+
+func writeConfigTemporary(temporary *os.File, content []byte) error {
+	temporaryPath := temporary.Name()
 	if err := temporary.Chmod(0600); err != nil {
 		return invalidConfig(temporaryPath, "arquivo temporário ajustável para modo 0600", err)
 	}
@@ -89,12 +104,6 @@ func (s JSONStore) replaceAtomically(ctx context.Context, content []byte) error 
 	}
 	if err := temporary.Close(); err != nil {
 		return invalidConfig(temporaryPath, "arquivo temporário fechável", err)
-	}
-	if err := contextError(ctx); err != nil {
-		return err
-	}
-	if err := os.Rename(temporaryPath, s.filePath); err != nil {
-		return invalidConfig(s.filePath, "arquivo de configuração substituível atomicamente", err)
 	}
 	return nil
 }

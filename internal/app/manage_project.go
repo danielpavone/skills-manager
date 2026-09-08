@@ -40,9 +40,9 @@ func (m ManageProject) Manage(ctx context.Context, projectPath string) (project.
 		return project.BatchResult{}, normalizeSelectionError(err)
 	}
 	if project.OnlyKeeps(changes) {
-		return project.UnchangedBatch(changes), nil
+		return project.DescribeConflicts(project.UnchangedBatch(changes), assessments), nil
 	}
-	return m.links.Apply(ctx, projectPath, changes), nil
+	return project.DescribeConflicts(m.links.Apply(ctx, projectPath, changes), assessments), nil
 }
 
 func (m ManageProject) inspectProject(ctx context.Context, projectPath string) ([]project.LinkAssessment, error) {

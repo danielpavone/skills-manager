@@ -62,6 +62,9 @@ func validateChange(projectPath string, change SelectionChange) error {
 func (f FilesystemLinks) installLink(ctx context.Context, projectPath string, change SelectionChange, base OperationResult) OperationResult {
 	fileSystem := f.withDefaultFileSystem().fileSystem
 	parent := filepath.Dir(change.LinkPath)
+	if err := validateLocalParents(fileSystem, change.LinkPath); err != nil {
+		return failedResult(base, err)
+	}
 	if err := fileSystem.MkdirAll(parent, 0700); err != nil {
 		return failedResult(base, filesystemError(parent, "diretório .agents/skills criável", err))
 	}
@@ -72,6 +75,10 @@ func (f FilesystemLinks) installLink(ctx context.Context, projectPath string, ch
 	if assessment.State != LinkAbsent || assessment.LinkPath != change.LinkPath {
 		return failedResult(base, stateChangedError(change.LinkPath, "destino ausente imediatamente antes da criação"))
 	}
+	return createAbsoluteSymlink(fileSystem, change, base)
+}
+
+func createAbsoluteSymlink(fileSystem FileSystem, change SelectionChange, base OperationResult) OperationResult {
 	if err := fileSystem.Symlink(change.Skill.SourcePath, change.LinkPath); err != nil {
 		if errors.Is(err, os.ErrExist) {
 			return failedResult(base, stateChangedError(change.LinkPath, "destino ausente no instante da criação"))

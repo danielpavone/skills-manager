@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielpavone/skills-manager/internal/app"
 	"github.com/danielpavone/skills-manager/internal/project"
+	"github.com/danielpavone/skills-manager/internal/summary"
 )
 
 const (
@@ -85,39 +86,7 @@ func (r Runner) writeProjectResult(result project.BatchResult) int {
 }
 
 func (r Runner) writeBatchSummary(result project.BatchResult) {
-	r.writeOutcomeGroup(result.Results, project.OutcomeInstalled, "instaladas")
-	r.writeOutcomeGroup(result.Results, project.OutcomeRemoved, "removidas")
-	r.writeOutcomeGroup(result.Results, project.OutcomeUnchanged, "inalteradas")
-	r.writeOutcomeGroup(result.Results, project.OutcomeFailed, "falhas")
-}
-
-func (r Runner) writeOutcomeGroup(results []project.OperationResult, outcome project.OperationOutcome, label string) {
-	items := matchingOutcomes(results, outcome)
-	if len(items) == 0 {
-		return
-	}
-	fmt.Fprintf(r.output, "%s:\n", label)
-	r.writeOutcomeItems(items)
-}
-
-func matchingOutcomes(results []project.OperationResult, outcome project.OperationOutcome) []project.OperationResult {
-	items := make([]project.OperationResult, 0, len(results))
-	for _, result := range results {
-		if result.Outcome == outcome {
-			items = append(items, result)
-		}
-	}
-	return items
-}
-
-func (r Runner) writeOutcomeItems(items []project.OperationResult) {
-	for _, item := range items {
-		if item.Message == "" {
-			fmt.Fprintf(r.output, "- %s\n", item.SkillName)
-			continue
-		}
-		fmt.Fprintf(r.output, "- %s: %s\n", item.SkillName, item.Message)
-	}
+	fmt.Fprintln(r.output, summary.RenderSummary(result))
 }
 
 func (r Runner) runConfig(ctx context.Context, args []string) int {

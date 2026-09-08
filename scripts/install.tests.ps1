@@ -8,8 +8,9 @@ New-Item -ItemType Directory -Path $fixtureDir, $archiveRoot, $installDir -Force
 
 try {
     $binaryPath = Join-Path $archiveRoot 'skills-manager.exe'
-    Set-Content -LiteralPath $binaryPath -Value 'fixture binary' -NoNewline
-    $archiveName = 'skills-manager_Windows_x86_64.zip'
+    & go build -ldflags '-X main.version=fixture' -o $binaryPath ./cmd/skills-manager
+    if ($LASTEXITCODE -ne 0) { throw 'teste do instalador: compilação da fixture falhou' }
+    $archiveName = 'skills-manager_windows_amd64.zip'
     $archivePath = Join-Path $fixtureDir $archiveName
     Compress-Archive -LiteralPath $binaryPath -DestinationPath $archivePath -Force
     $checksum = (Get-FileHash -Algorithm SHA256 -LiteralPath $archivePath).Hash.ToLowerInvariant()
@@ -33,7 +34,10 @@ try {
     if ((Get-Content -LiteralPath $installed -Raw) -ne 'binário anterior') { throw 'teste do instalador: checksum divergente substituiu o binário' }
     Set-Content -LiteralPath (Join-Path $fixtureDir 'skills-manager_checksums.txt') -Value "$checksum  $archiveName" -NoNewline
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'install.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'teste do instalador: instalação válida deveria retornar sucesso' }
     if (-not (Test-Path -LiteralPath $installed -PathType Leaf)) { throw 'teste do instalador: binário não instalado' }
+    $installedVersion = & $installed --version
+    if ($LASTEXITCODE -ne 0 -or $installedVersion -ne 'fixture') { throw 'teste do instalador: artefato instalado não executou --version corretamente' }
     Write-Output 'instalador Windows validado com fixtures locais'
 } finally {
     Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue

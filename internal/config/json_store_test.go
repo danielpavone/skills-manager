@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestJSONStorePersistsAndReloadsConfiguration(t *testing.T) {
 	if reloaded != configured {
 		t.Fatalf("reloaded = %#v, want %#v", reloaded, configured)
 	}
-	if mode := fileMode(t, filepath.Join(directory, "settings", configFileName)); mode.Perm() != 0600 {
+	if mode := fileMode(t, filepath.Join(directory, "settings", configFileName)); runtime.GOOS != "windows" && mode.Perm() != 0600 {
 		t.Fatalf("config mode = %o, want 600", mode.Perm())
 	}
 }
@@ -40,7 +41,7 @@ func TestJSONStoreReportsMissingConfiguration(t *testing.T) {
 func TestJSONStoreRejectsInvalidContentWithoutChangingPreviousFile(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "settings")
 	store := NewJSONStore(directory)
-	configured := CatalogConfig{SchemaVersion: CurrentSchemaVersion, CatalogPath: "/catalog/original"}
+	configured := CatalogConfig{SchemaVersion: CurrentSchemaVersion, CatalogPath: filepath.Join(t.TempDir(), "original")}
 	if err := store.Save(context.Background(), configured); err != nil {
 		t.Fatalf("initial Save() error = %v", err)
 	}
@@ -61,7 +62,7 @@ func TestJSONStorePreservesPreviousFileWhenReplacementFails(t *testing.T) {
 	if err := os.Mkdir(target, 0700); err != nil {
 		t.Fatalf("Mkdir(%q) error = %v", target, err)
 	}
-	configured := CatalogConfig{SchemaVersion: CurrentSchemaVersion, CatalogPath: "/catalog"}
+	configured := CatalogConfig{SchemaVersion: CurrentSchemaVersion, CatalogPath: filepath.Join(t.TempDir(), "catalog")}
 	if err := store.Save(context.Background(), configured); err == nil {
 		t.Fatal("Save() error = nil, want replacement failure")
 	}

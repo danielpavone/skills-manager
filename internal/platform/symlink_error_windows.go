@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"syscall"
 )
 
 func IsSymlinkPermissionError(err error) bool {
-	return errors.Is(err, os.ErrPermission)
+	return errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ERROR_PRIVILEGE_NOT_HELD)
 }
 
 func SymlinkPermissionMessage(skillName, linkPath string, cause error) string {

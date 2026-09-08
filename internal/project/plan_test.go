@@ -89,12 +89,13 @@ func TestSelectionAndPlanRejectInvalidNamesAndDestinations(t *testing.T) {
 
 func planAssessments(t *testing.T, states ...LinkState) []LinkAssessment {
 	t.Helper()
+	projectRoot := t.TempDir()
 	assessments := make([]LinkAssessment, 0, len(states))
 	for index, state := range states {
 		name := []string{"first", "second", "third", "fourth", "fifth"}[index]
 		skill := catalog.Skill{Name: name, SourcePath: filepath.Join(t.TempDir(), name)}
 		assessments = append(assessments, LinkAssessment{
-			Skill: skill, LinkPath: filepath.Join("/project/.agents/skills", name), State: state,
+			Skill: skill, LinkPath: filepath.Join(projectRoot, ".agents", "skills", name), State: state,
 		})
 	}
 	return assessments
