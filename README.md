@@ -87,10 +87,12 @@ Atalhos principais:
 | `/` | pesquisar pelo nome |
 | `↑`/`↓`, `j`/`k` | percorrer a lista |
 | `space` | selecionar ou desmarcar |
-| `enter` | abrir ou concluir a confirmação; voltar às skills após aplicar |
+| `enter` | aplicar a pesquisa; abrir ou concluir a confirmação; voltar às skills após aplicar |
 | `y` | aplicar alterações |
-| `esc` | voltar ou cancelar |
+| `esc` | cancelar ou limpar a pesquisa; voltar ou cancelar a operação |
 | `q`, `ctrl+c` | sair |
+
+Durante a pesquisa, `enter` aplica o filtro e retorna à navegação. Depois de selecionar uma skill filtrada, pressione `esc` para limpar a pesquisa e voltar à lista completa; as seleções já feitas são preservadas.
 
 `--version` exibe a versão compilada. A CLI retorna `0` em sucesso ou cancelamento explícito, `1` quando há falha de configuração ou operação e `2` para uso inválido.
 

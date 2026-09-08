@@ -118,23 +118,24 @@ func (m Model) updateListMessage(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateList(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if isKey(key, "ctrl+c") {
+	switch {
+	case isKey(key, "ctrl+c"):
 		m.phase = phaseCanceled
 		return m, tea.Quit
-	}
-	if m.list.FilterState() != list.Filtering && isKey(key, "space") {
+	case m.list.FilterState() == list.FilterApplied && isKey(key, "esc"):
+		return m.updateListMessage(key)
+	case m.list.FilterState() != list.Filtering && isKey(key, "space"):
 		m.toggleCurrent()
 		return m, nil
-	}
-	if m.list.FilterState() != list.Filtering && isKey(key, "enter") {
+	case m.list.FilterState() != list.Filtering && isKey(key, "enter"):
 		m.phase = phaseConfirm
 		return m, nil
-	}
-	if m.list.FilterState() != list.Filtering && isCancelKey(key) {
+	case m.list.FilterState() != list.Filtering && isCancelKey(key):
 		m.phase = phaseCanceled
 		return m, tea.Quit
+	default:
+		return m.updateListMessage(key)
 	}
-	return m.updateListMessage(key)
 }
 
 func (m Model) updateConfirmation(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
