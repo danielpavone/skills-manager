@@ -3,6 +3,8 @@ package tui
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -41,6 +43,19 @@ func TestModelFiltersCatalogByNameAndRetainsKeyboardPaging(t *testing.T) {
 	}
 }
 
+func TestModelUsesComfortableSpacingAndCompactFallback(t *testing.T) {
+	model := NewModel(testAssessments())
+	view := ansi.Strip(model.View().Content)
+	assertContains(t, view, "skills-manager")
+	assertContains(t, view, "Selecione as skills deste projeto\n\n")
+	assertContains(t, view, "pressione / para pesquisar\n\n")
+
+	model = updateModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 5})
+	if strings.Contains(model.View().Content, "Selecione as skills deste projeto") {
+		t.Fatal("compact view includes subtitle, want space reserved for the list")
+	}
+}
+
 func TestModelUpdatesSelectionConfirmationAndCancellationByKeyboard(t *testing.T) {
 	model := NewModel(testAssessments())
 	model = updateModel(t, model, keyPress("space"))
@@ -61,6 +76,32 @@ func TestModelUpdatesSelectionConfirmationAndCancellationByKeyboard(t *testing.T
 	if model.phase != phaseCanceled {
 		t.Fatalf("phase after q = %q, want canceled", model.phase)
 	}
+}
+
+func TestModelConfirmationListsChangesAndAcceptsEnter(t *testing.T) {
+	model := NewModel(testAssessments())
+	model = updateModel(t, model, keyPress("space"))
+	model = updateModel(t, model, keyPress("down"))
+	model = updateModel(t, model, keyPress("space"))
+	model = updateModel(t, model, keyPress("enter"))
+	view := ansi.Strip(model.View().Content)
+	assertContains(t, view, "Instalar (1)\n    + absent")
+	assertContains(t, view, "Remover (1)\n    - installed")
+	assertContains(t, view, "+ absent\n\n  Remover")
+	assertContains(t, view, "enter confirmar")
+
+	model = updateModel(t, model, keyPress("enter"))
+	if model.phase != phaseSummary {
+		t.Fatalf("phase after confirmation enter = %q, want summary", model.phase)
+	}
+}
+
+func TestModelConfirmationShowsEmptyOperationGroups(t *testing.T) {
+	model := NewModel(testAssessments())
+	model = updateModel(t, model, keyPress("enter"))
+	view := ansi.Strip(model.View().Content)
+	assertContains(t, view, "Instalar (0)\n    nenhuma alteração")
+	assertContains(t, view, "Remover (0)\n    nenhuma alteração")
 }
 
 func TestModelResizeKeepsListWithinSmallTerminal(t *testing.T) {
@@ -102,9 +143,9 @@ func TestModelRendersSummaryState(t *testing.T) {
 
 func TestSelectionUICompletesControlledKeyboardSession(t *testing.T) {
 	output := &bytes.Buffer{}
-	ui := NewSelectionUI(strings.NewReader("\ry"), output)
+	ui := NewSelectionUI(strings.NewReader("\r\r"), output)
 	selection, err := ui.Choose(context.Background(), []project.LinkAssessment{
-		{Skill: catalog.Skill{Name: "absent", SourcePath: "/catalog/absent"}, LinkPath: "/project/.agents/skills/absent", State: project.LinkAbsent},
+		{Skill: catalog.Skill{Name: "absent", SourcePath: filepath.Join(os.TempDir(), "catalog", "absent")}, LinkPath: filepath.Join(os.TempDir(), "project", ".agents", "skills", "absent"), State: project.LinkAbsent},
 	})
 	if err != nil {
 		t.Fatalf("Choose() error = %v", err)
@@ -119,12 +160,12 @@ func TestSelectionUICompletesTenSkillKeyboardSession(t *testing.T) {
 	for index := range assessments {
 		name := "skill-" + string(rune('a'+index))
 		assessments[index] = project.LinkAssessment{
-			Skill:    catalog.Skill{Name: name, SourcePath: "/catalog/" + name},
-			LinkPath: "/project/.agents/skills/" + name,
+			Skill:    catalog.Skill{Name: name, SourcePath: filepath.Join(os.TempDir(), "catalog", name)},
+			LinkPath: filepath.Join(os.TempDir(), "project", ".agents", "skills", name),
 			State:    project.LinkAbsent,
 		}
 	}
-	input := " " + strings.Repeat("\x1b[B ", len(assessments)-1) + "\ry"
+	input := " " + strings.Repeat("\x1b[B ", len(assessments)-1) + "\r\r"
 	selection, err := NewSelectionUI(strings.NewReader(input), &bytes.Buffer{}).Choose(context.Background(), assessments)
 	if err != nil {
 		t.Fatalf("Choose() error = %v", err)
@@ -155,10 +196,12 @@ func keyPress(name string) tea.KeyPressMsg {
 }
 
 func testAssessments() []project.LinkAssessment {
+	catalogRoot := filepath.Join(os.TempDir(), "catalog")
+	projectSkills := filepath.Join(os.TempDir(), "project", ".agents", "skills")
 	return []project.LinkAssessment{
-		{Skill: catalog.Skill{Name: "installed", SourcePath: "/catalog/installed"}, LinkPath: "/project/.agents/skills/installed", State: project.LinkInstalled},
-		{Skill: catalog.Skill{Name: "absent", SourcePath: "/catalog/absent"}, LinkPath: "/project/.agents/skills/absent", State: project.LinkAbsent},
-		{Skill: catalog.Skill{Name: "wrong", SourcePath: "/catalog/wrong"}, LinkPath: "/project/.agents/skills/wrong", State: project.LinkWrongTarget},
+		{Skill: catalog.Skill{Name: "installed", SourcePath: filepath.Join(catalogRoot, "installed")}, LinkPath: filepath.Join(projectSkills, "installed"), State: project.LinkInstalled},
+		{Skill: catalog.Skill{Name: "absent", SourcePath: filepath.Join(catalogRoot, "absent")}, LinkPath: filepath.Join(projectSkills, "absent"), State: project.LinkAbsent},
+		{Skill: catalog.Skill{Name: "wrong", SourcePath: filepath.Join(catalogRoot, "wrong")}, LinkPath: filepath.Join(projectSkills, "wrong"), State: project.LinkWrongTarget},
 	}
 }
 

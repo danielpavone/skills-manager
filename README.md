@@ -49,7 +49,7 @@ Atalhos principais:
 | `/` | pesquisar pelo nome |
 | `↑`/`↓`, `j`/`k` | percorrer a lista |
 | `space` | selecionar ou desmarcar |
-| `enter` | abrir confirmação |
+| `enter` | abrir ou concluir a confirmação |
 | `y` | aplicar alterações |
 | `esc` | voltar ou cancelar |
 | `q`, `ctrl+c` | sair |

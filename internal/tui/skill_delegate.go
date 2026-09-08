@@ -20,10 +20,11 @@ func (i skillItem) FilterValue() string {
 
 type skillDelegate struct {
 	selected map[string]bool
+	styles   viewStyles
 }
 
-func newSkillDelegate(selected map[string]bool) skillDelegate {
-	return skillDelegate{selected: selected}
+func newSkillDelegate(selected map[string]bool, styles viewStyles) skillDelegate {
+	return skillDelegate{selected: selected, styles: styles}
 }
 
 func (d skillDelegate) Height() int { return 1 }
@@ -37,18 +38,28 @@ func (d skillDelegate) Render(writer io.Writer, model list.Model, index int, ite
 	if !ok {
 		return
 	}
-	line := formatSkillLine(skill, d.selected[skill.assessment.Skill.Name], index == model.Index())
+	line := formatSkillLine(skill, d.selected[skill.assessment.Skill.Name], index == model.Index(), d.styles)
 	line = ansi.Truncate(line, maxWidth(model.Width()), "…")
 	_, _ = fmt.Fprint(writer, line)
 }
 
-func formatSkillLine(item skillItem, selected, focused bool) string {
+func formatSkillLine(item skillItem, selected, focused bool, styles viewStyles) string {
 	marker, state := itemMarkerAndState(item.assessment, selected)
 	prefix := "  "
 	if focused {
-		prefix = "> "
+		prefix = styles.focused.Render("> ")
 	}
-	return fmt.Sprintf("%s%s %-24s %s", prefix, marker, item.assessment.Skill.Name, state)
+	if selected {
+		marker = styles.selected.Render(marker)
+	}
+	if !isMutable(item.assessment.State) {
+		marker = styles.warning.Render(marker)
+	}
+	name := fmt.Sprintf("%-24s", item.assessment.Skill.Name)
+	if focused {
+		name = styles.focused.Render(name)
+	}
+	return fmt.Sprintf("%s%s %s %s", prefix, marker, name, styles.muted.Render(state))
 }
 
 func itemMarkerAndState(assessment project.LinkAssessment, selected bool) (string, string) {

@@ -33,7 +33,7 @@ func (r fixedCatalogReader) Read(context.Context, string) ([]catalog.Skill, erro
 
 func TestSelectionUIInstallsSelectedSkillThroughProjectWorkflow(t *testing.T) {
 	projectPath, skill := testProjectAndSkill(t, "install")
-	result := runWorkflow(t, projectPath, skill, " \ry")
+	result := runWorkflow(t, projectPath, skill, " \r\r")
 	if result.Results[0].Outcome != project.OutcomeInstalled {
 		t.Fatalf("outcome = %q, want installed", result.Results[0].Outcome)
 	}
@@ -45,8 +45,8 @@ func TestSelectionUIInstallsSelectedSkillThroughProjectWorkflow(t *testing.T) {
 
 func TestSelectionUIReopensAndRemovesOnlyTheLocalLink(t *testing.T) {
 	projectPath, skill := testProjectAndSkill(t, "remove")
-	runWorkflow(t, projectPath, skill, " \ry")
-	result := runWorkflow(t, projectPath, skill, " \ry")
+	runWorkflow(t, projectPath, skill, " \r\r")
+	result := runWorkflow(t, projectPath, skill, " \r\r")
 	if result.Results[0].Outcome != project.OutcomeRemoved {
 		t.Fatalf("outcome = %q, want removed", result.Results[0].Outcome)
 	}

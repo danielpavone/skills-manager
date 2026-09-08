@@ -10,6 +10,7 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/danielpavone/skills-manager/internal/project"
 )
@@ -37,9 +38,11 @@ type Model struct {
 func NewModel(assessments []project.LinkAssessment) Model {
 	selected := initialSelection(assessments)
 	items := assessmentItems(assessments)
-	delegate := newSkillDelegate(selected)
+	styles := newViewStyles()
+	delegate := newSkillDelegate(selected, styles)
 	itemsList := list.New(items, delegate, 80, 12)
 	itemsList.Title = "skills"
+	itemsList.FilterInput.Prompt = "pesquisa: "
 	itemsList.SetShowTitle(false)
 	itemsList.SetShowStatusBar(false)
 	itemsList.SetShowHelp(false)
@@ -49,7 +52,7 @@ func NewModel(assessments []project.LinkAssessment) Model {
 		assessments: append([]project.LinkAssessment(nil), assessments...),
 		selected:    selected,
 		list:        itemsList,
-		styles:      newViewStyles(),
+		styles:      styles,
 		phase:       phaseList,
 		width:       80,
 		height:      20,
@@ -109,7 +112,7 @@ func (m Model) updateList(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateConfirmation(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if isConfirmKey(key) && key.String() == "y" {
+	if isConfirmKey(key) {
 		m.phase = phaseSummary
 		return m, tea.Quit
 	}
@@ -127,7 +130,11 @@ func (m Model) updateConfirmation(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *Model) resize(width, height int) {
 	m.width = maxWidth(width)
 	m.height = maxWidth(height)
-	m.list.SetSize(m.width, maxWidth(m.height-6))
+	reservedRows := 9
+	if m.height < 12 {
+		reservedRows = 4
+	}
+	m.list.SetSize(m.width, maxWidth(m.height-reservedRows))
 }
 
 func (m *Model) toggleCurrent() {
@@ -160,21 +167,65 @@ func (m Model) renderContent() string {
 }
 
 func (m Model) renderList() string {
-	title := m.styles.title.Render("skills-manager — catálogo")
-	search := "pesquisa: " + m.list.FilterValue()
-	help := m.styles.muted.Render("/ pesquisar • ↑/↓ ou j/k mover • space selecionar • enter confirmar • esc/q cancelar")
-	return fitViewWidth([]string{title, search, m.list.View(), help}, m.width)
+	title := "  " + m.styles.title.Render("skills-manager")
+	search := "  " + m.styles.muted.Render("pressione / para pesquisar")
+	if m.list.FilterState() != list.Unfiltered {
+		search = "  " + m.list.FilterInput.View()
+	}
+	help := "  " + m.styles.muted.Render("↑/↓ ou j/k mover • space selecionar • enter revisar • esc/q sair")
+	if m.height < 12 {
+		return fitViewWidth([]string{title, search, m.list.View(), help}, m.width)
+	}
+	subtitle := "  " + m.styles.subtitle.Render("Selecione as skills deste projeto")
+	return fitViewWidth([]string{"", title, subtitle, "", search, "", m.list.View(), "", help}, m.width)
 }
 
 func (m Model) renderConfirmation() string {
-	selected := countSelected(m.assessments, m.selected)
-	locked := countLocked(m.assessments)
-	lines := []string{
-		m.styles.title.Render("confirmar alterações"),
-		fmt.Sprintf("selecionadas: %d • conflitos bloqueados: %d", selected, locked),
-		"y confirmar • esc voltar • q cancelar",
+	installNames, removeNames, err := confirmationSkillNames(m.assessments, m.selected)
+	if err != nil {
+		return fitViewWidth([]string{m.styles.title.Render("confirmar alterações"), err.Error()}, m.width)
 	}
+	installBlock := formatConfirmationGroup("Instalar", "+", installNames, m.styles.install)
+	removeBlock := formatConfirmationGroup("Remover", "-", removeNames, m.styles.remove)
+	locked := "  " + m.styles.warning.Render(fmt.Sprintf("Conflitos bloqueados (%d)", countLocked(m.assessments)))
+	lines := []string{"", "  " + m.styles.title.Render("confirmar alterações"), "  " + m.styles.subtitle.Render("Revise o que será alterado antes de continuar"), "", installBlock, "", removeBlock, "", locked, "", "  " + m.styles.muted.Render("enter confirmar • esc voltar • q cancelar")}
 	return fitViewWidth(lines, m.width)
+}
+
+func confirmationSkillNames(assessments []project.LinkAssessment, selected map[string]bool) ([]string, []string, error) {
+	selection, err := project.NewSelection(selectedNames(assessments, selected))
+	if err != nil {
+		return nil, nil, err
+	}
+	changes, err := project.PlanSelection(assessments, selection)
+	if err != nil {
+		return nil, nil, err
+	}
+	installNames, removeNames := confirmationChangeNames(changes)
+	return installNames, removeNames, nil
+}
+
+func confirmationChangeNames(changes []project.SelectionChange) ([]string, []string) {
+	installNames := make([]string, 0, len(changes))
+	removeNames := make([]string, 0, len(changes))
+	for _, change := range changes {
+		if change.Action == project.ActionInstall {
+			installNames = append(installNames, change.Skill.Name)
+		}
+		if change.Action == project.ActionRemove {
+			removeNames = append(removeNames, change.Skill.Name)
+		}
+	}
+	return installNames, removeNames
+}
+
+func formatConfirmationGroup(title, marker string, skillNames []string, style lipgloss.Style) string {
+	header := "  " + style.Render(fmt.Sprintf("%s (%d)", title, len(skillNames)))
+	if len(skillNames) == 0 {
+		return header + "\n    nenhuma alteração"
+	}
+	itemPrefix := "    " + marker + " "
+	return header + "\n" + itemPrefix + strings.Join(skillNames, "\n"+itemPrefix)
 }
 
 func fitViewWidth(lines []string, width int) string {
@@ -260,10 +311,6 @@ func selectedNames(assessments []project.LinkAssessment, selected map[string]boo
 
 func isMutable(state project.LinkState) bool {
 	return state == project.LinkAbsent || state == project.LinkInstalled
-}
-
-func countSelected(assessments []project.LinkAssessment, selected map[string]bool) int {
-	return len(selectedNames(assessments, selected))
 }
 
 func countLocked(assessments []project.LinkAssessment) int {
